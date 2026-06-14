@@ -1,5 +1,10 @@
 # Gentepede MCP
 
+[![Blueprint Verification](https://github.com/shubhamjaggi/gentepede-mcp/actions/workflows/blueprint-verify.yml/badge.svg)](https://github.com/shubhamjaggi/gentepede-mcp/actions/workflows/blueprint-verify.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Java 21](https://img.shields.io/badge/Java-21-orange.svg)](https://adoptium.net/)
+[![Kotlin](https://img.shields.io/badge/Kotlin-2.1-purple.svg)](https://kotlinlang.org/)
+
 A Kotlin-based [MCP](docs/00-glossary.md#mcp-model-context-protocol) server that acts as a deterministic Knowledge Engine for enterprise cloud architectures. Maps application tech-stacks (Spring Boot, Ktor, Node.js, FastAPI) to fully provisioned, secure [AWS](docs/00-glossary.md#aws-amazon-web-services) infrastructure via [Terraform](docs/00-glossary.md#terraform) — and for EKS blueprints also generates a production-ready [Helm](docs/00-glossary.md#helm) chart alongside the Terraform. Features a full plan-review-apply pipeline, live cost estimation via [Infracost](docs/00-glossary.md#infracost), drift detection, credential transparency, and free local [K8s](docs/00-glossary.md#kubernetes) testing via [`kind`](docs/00-glossary.md#kind-kubernetes-in-docker).
 
 ---
@@ -45,7 +50,7 @@ Install all of the following before building:
 
 ```bash
 # 1. Clone and build
-git clone https://github.com/your-org/gentepede-mcp
+git clone https://github.com/shubhamjaggi/gentepede-mcp
 cd gentepede-mcp
 ./gradlew shadowJar
 
@@ -146,9 +151,11 @@ Gentepede embeds security best practices directly in every Terraform template an
 
 ## Contributing
 
-Contributions welcome — especially new blueprints for additional tech stacks. See [docs/10-adding-blueprints.md](docs/10-adding-blueprints.md) for the step-by-step guide and PR checklist.
+Contributions welcome — especially new blueprints for additional tech stacks. Start with [CONTRIBUTING.md](CONTRIBUTING.md), and see [docs/10-adding-blueprints.md](docs/10-adding-blueprints.md) for the step-by-step blueprint guide and PR checklist.
 
 The architecture deliberately separates concerns: Engine.kt (thin MCP handler), InfrastructureService.kt (business logic, fully testable without MCP server), Validator.kt (CLI output parsing), and Models.kt (shared types). Keep this separation when contributing.
+
+This project follows a [Code of Conduct](CODE_OF_CONDUCT.md). To report a security vulnerability, see [SECURITY.md](SECURITY.md) — please do not open a public issue.
 
 ---
 

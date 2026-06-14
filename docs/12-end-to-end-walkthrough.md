@@ -103,7 +103,7 @@ Verify: `helm diff version`
 ## Phase 2 — Build
 
 ```bash
-git clone https://github.com/your-org/gentepede-mcp
+git clone https://github.com/shubhamjaggi/gentepede-mcp
 cd gentepede-mcp
 ./gradlew shadowJar
 ```
