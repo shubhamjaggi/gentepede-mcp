@@ -17,18 +17,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
-    services:
-      localstack:
-        image: localstack/localstack:latest
-        ports:
-          - 4566:4566
-        env:
-          SERVICES: s3,ec2,iam,rds,dynamodb,ecs,ecr,eks,elasticache,kms,cloudfront,apigateway,lambda
-        options: >-
-          --health-cmd="curl -f http://localhost:4566/_localstack/health || exit 1"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=10
+    # No AWS sandbox is needed: the verification is purely static — it generates each
+    # workspace and runs `terraform init` + `terraform validate` + checkov, none of which
+    # make AWS API calls. (Most of the blueprints' services — RDS, EKS, ECS, CloudFront —
+    # are LocalStack Pro features anyway, so a community LocalStack could not host them.)
 
     steps:
       - name: Checkout repository
@@ -50,11 +42,6 @@ jobs:
 
       - name: Build fat JAR
         run: ./gradlew shadowJar
-
-      - name: Verify LocalStack health
-        run: |
-          curl -f http://localhost:4566/_localstack/health
-          echo "LocalStack is healthy"
 
       - name: Verify blueprints
         id: verify
