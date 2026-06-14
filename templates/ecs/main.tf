@@ -779,18 +779,27 @@ resource "aws_elasticache_subnet_group" "main" {
   }
 }
 
-resource "aws_elasticache_cluster" "redis" {
+# ElastiCache Redis via a replication group (cluster-mode-disabled, single shard).
+# We use aws_elasticache_replication_group rather than aws_elasticache_cluster because
+# at-rest encryption (at_rest_encryption_enabled) is only configurable on the replication
+# group resource — the legacy cluster resource does not expose it.
+resource "aws_elasticache_replication_group" "redis" {
   count                = var.enable_redis ? 1 : 0
-  cluster_id           = "${var.project_name}-redis"
+  replication_group_id = "${var.project_name}-redis"
+  description          = "Redis cache for ${var.project_name}"
   engine               = "redis"
-  node_type            = var.redis_node_type
-  num_cache_nodes      = var.redis_num_nodes
-  parameter_group_name = "default.redis7"
   engine_version       = "7.1"
+  node_type            = var.redis_node_type
+  num_cache_clusters   = var.redis_num_nodes
+  parameter_group_name = "default.redis7"
   port                 = 6379
 
   subnet_group_name  = aws_elasticache_subnet_group.main[0].name
   security_group_ids = [aws_security_group.redis[0].id]
+
+  # Single-node deployments cannot use automatic failover; keep it off so the default
+  # (redis_num_nodes = 1) is valid. Raise redis_num_nodes to add read replicas.
+  automatic_failover_enabled = false
 
   # at_rest_encryption_enabled encrypts the Redis data on disk.
   # Without it, a compromised host could read cache contents directly from storage.
@@ -823,13 +832,13 @@ output "ecs_cluster_name" {
 
 output "rds_endpoint" {
   description = "RDS instance endpoint. Use this in your application configuration (not the public internet)."
-  value       = try(aws_db_instance.postgres[0].endpoint, "N/A — RDS not provisioned for this blueprint")
+  value       = try(aws_db_instance.postgres[0].endpoint, "N/A - RDS not provisioned for this blueprint")
   sensitive   = true
 }
 
 output "redis_endpoint" {
   description = "ElastiCache Redis primary endpoint."
-  value       = try(aws_elasticache_cluster.redis[0].cache_nodes[0].address, "N/A — Redis not provisioned for this blueprint")
+  value       = try(aws_elasticache_replication_group.redis[0].primary_endpoint_address, "N/A - Redis not provisioned for this blueprint")
   sensitive   = true
 }
 

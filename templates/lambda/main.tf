@@ -10,7 +10,7 @@ data "aws_caller_identity" "current" {}
 # ─────────────────────────────────────────────────────────────────────────────
 
 resource "aws_kms_key" "main" {
-  description             = "${var.project_name} — project encryption key"
+  description             = "${var.project_name} - project encryption key"
   deletion_window_in_days = 30
   enable_key_rotation     = true
 
