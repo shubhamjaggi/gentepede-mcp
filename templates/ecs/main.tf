@@ -24,7 +24,7 @@ data "aws_availability_zones" "available" {
 # ─────────────────────────────────────────────────────────────────────────────
 
 resource "aws_kms_key" "main" {
-  description             = "${var.project_name} — project encryption key"
+  description             = "${var.project_name} - project encryption key"
   deletion_window_in_days = 30
   # Without enable_key_rotation, the same cryptographic material is used indefinitely.
   # Annual rotation limits the blast radius of a compromised key material.
@@ -246,7 +246,7 @@ resource "aws_security_group" "alb" {
   vpc_id      = aws_vpc.main.id
 
   ingress {
-    description = "HTTPS from anywhere — the only public ingress (CKV_AWS_2)"
+    description = "HTTPS from anywhere - the only public ingress (CKV_AWS_2)"
     from_port   = 443
     to_port     = 443
     protocol    = "tcp"
@@ -254,7 +254,7 @@ resource "aws_security_group" "alb" {
   }
 
   ingress {
-    description = "HTTP redirect — immediately redirected to HTTPS by listener rule"
+    description = "HTTP redirect - immediately redirected to HTTPS by listener rule"
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
@@ -283,7 +283,7 @@ resource "aws_security_group" "ecs_tasks" {
   vpc_id      = aws_vpc.main.id
 
   ingress {
-    description     = "Traffic from ALB only — no 0.0.0.0/0 ingress"
+    description     = "Traffic from ALB only - no 0.0.0.0/0 ingress"
     from_port       = var.container_port
     to_port         = var.container_port
     protocol        = "tcp"
@@ -313,7 +313,7 @@ resource "aws_security_group" "rds" {
   vpc_id      = aws_vpc.main.id
 
   ingress {
-    description     = "PostgreSQL from ECS tasks only — database is never internet-accessible"
+    description     = "PostgreSQL from ECS tasks only - database is never internet-accessible"
     from_port       = 5432
     to_port         = 5432
     protocol        = "tcp"
@@ -676,7 +676,7 @@ resource "aws_db_subnet_group" "main" {
   count      = var.enable_rds ? 1 : 0
   name       = "${var.project_name}-db-subnet-group"
   subnet_ids = aws_subnet.private[*].id
-  description = "Private subnets for RDS — no public internet access"
+  description = "Private subnets for RDS - no public internet access"
 
   tags = {
     Environment = var.environment
