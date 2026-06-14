@@ -1,5 +1,6 @@
 # Gentepede MCP
 
+[![CI](https://github.com/shubhamjaggi/gentepede-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/shubhamjaggi/gentepede-mcp/actions/workflows/ci.yml)
 [![Blueprint Verification](https://github.com/shubhamjaggi/gentepede-mcp/actions/workflows/blueprint-verify.yml/badge.svg)](https://github.com/shubhamjaggi/gentepede-mcp/actions/workflows/blueprint-verify.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Java 21](https://img.shields.io/badge/Java-21-orange.svg)](https://adoptium.net/)

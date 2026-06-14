@@ -6,6 +6,12 @@ on:
     - cron: "0 9 * * 1"
   workflow_dispatch: # Allow manual trigger for testing
 
+# The default GITHUB_TOKEN is read-only; this job commits the updated lastVerifiedDate
+# (contents: write) and opens an issue on failure (issues: write).
+permissions:
+  contents: write
+  issues: write
+
 jobs:
   verify-blueprints:
     runs-on: ubuntu-latest
