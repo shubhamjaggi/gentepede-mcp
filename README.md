@@ -115,12 +115,12 @@ audit_infrastructure_package      → Standalone security report (any time)
 
 | Blueprint ID | Framework | Output | AWS Resources | Provider | Last Verified | Est. Monthly Cost |
 |---|---|---|---|---|---|---|
-| `springboot-postgres` | Spring Boot | Terraform only | ECS Fargate, RDS PostgreSQL, ALB, VPC, KMS | 5.82.0 | 2025-06 | ~$70-120 |
-| `ktor-dynamodb` | Ktor | Terraform only | ECS Fargate, DynamoDB, ALB, VPC | 5.82.0 | 2025-06 | ~$40-80 |
-| `nodejs-s3` | Node.js | Terraform only | Lambda, API Gateway, S3, CloudFront, KMS | 5.82.0 | 2025-06 | ~$5-30 |
-| `fastapi-redis` | FastAPI | Terraform only | ECS Fargate, ElastiCache Redis, ALB, VPC | 5.82.0 | 2025-06 | ~$50-90 |
-| `springboot-eks` | Spring Boot | Terraform + Helm | EKS Cluster, RDS PostgreSQL, ALB Ingress, VPC | 5.82.0 | 2025-06 | ~$150-250 |
-| `nodejs-eks` | Node.js | Terraform + Helm | EKS Cluster, S3, CloudFront, ALB Ingress, VPC | 5.82.0 | 2025-06 | ~$100-200 |
+| `springboot-postgres` | Spring Boot | Terraform only | ECS Fargate, RDS PostgreSQL, ALB, VPC, KMS | 5.82.0 | 2026-06 | ~$70-120 |
+| `ktor-dynamodb` | Ktor | Terraform only | ECS Fargate, DynamoDB, ALB, VPC | 5.82.0 | 2026-06 | ~$40-80 |
+| `nodejs-s3` | Node.js | Terraform only | Lambda, API Gateway, S3, CloudFront, KMS | 5.82.0 | 2026-06 | ~$5-30 |
+| `fastapi-redis` | FastAPI | Terraform only | ECS Fargate, ElastiCache Redis, ALB, VPC | 5.82.0 | 2026-06 | ~$50-90 |
+| `springboot-eks` | Spring Boot | Terraform + Helm | EKS Cluster, RDS PostgreSQL, ALB Ingress, VPC | 5.82.0 | 2026-06 | ~$150-250 |
+| `nodejs-eks` | Node.js | Terraform + Helm | EKS Cluster, S3, CloudFront, ALB Ingress, VPC | 5.82.0 | 2026-06 | ~$100-200 |
 
 ---
 
