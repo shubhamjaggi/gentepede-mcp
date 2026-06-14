@@ -1,0 +1,11 @@
+# Normalize all text files to LF in the repository.
+* text=auto eol=lf
+
+# Windows batch files must stay CRLF.
+*.bat text eol=crlf
+
+# The Gradle wrapper script must be LF so it runs on Linux/macOS and CI.
+gradlew text eol=lf
+
+# Binary files — never normalize.
+*.jar binary

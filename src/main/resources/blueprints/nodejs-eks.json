@@ -1,0 +1,40 @@
+{
+  "blueprintId": "nodejs-eks",
+  "displayName": "Node.js + S3 (EKS + Helm + CloudFront)",
+  "description": "Deploys a Node.js application on Amazon EKS using Helm, with S3 for object storage, CloudFront as CDN, and ALB Ingress Controller for HTTPS. Generates both Terraform (cluster, S3, VPC) and a production-ready Helm chart. Supports local testing via kind.",
+  "outputType": "TERRAFORM_K8S",
+  "templateFamily": "eks",
+  "terraformProviderVersion": "5.82.0",
+  "lastVerifiedDate": "2025-06",
+  "techStack": {
+    "language": "JavaScript/TypeScript",
+    "framework": "Node.js",
+    "database": null
+  },
+  "awsResources": [
+    { "type": "VPC",         "required": true, "defaultConfig": { "cidr": "10.0.0.0/16" } },
+    { "type": "EKS_CLUSTER", "required": true, "defaultConfig": { "version": "1.31", "node_instance_type": "t3.medium" } },
+    { "type": "ALB",         "required": true, "defaultConfig": { "https_only": true } },
+    { "type": "S3_BUCKET",   "required": true, "defaultConfig": { "versioning": true } },
+    { "type": "CLOUDFRONT",  "required": true, "defaultConfig": {} },
+    { "type": "KMS",         "required": true, "defaultConfig": {} }
+  ],
+  "variables": [
+    { "name": "project_name",      "description": "Unique name for this deployment (alphanumeric + hyphens)", "type": "string",  "default": null,          "required": true },
+    { "name": "aws_region",        "description": "AWS region to deploy into",                                  "type": "string",  "default": "us-east-1",   "required": false },
+    { "name": "aws_profile",       "description": "AWS CLI profile name (PRODUCTION only)",                    "type": "string",  "default": "default",     "required": false },
+    { "name": "environment",       "description": "Deployment environment tag (e.g. dev, staging, prod)",      "type": "string",  "default": "dev",         "required": false },
+    { "name": "container_image",   "description": "Full ECR image URI including tag",                          "type": "string",  "default": null,          "required": true },
+    { "name": "image_tag",         "description": "Container image tag (never 'latest')",                      "type": "string",  "default": null,          "required": true },
+    { "name": "eks_version",       "description": "Kubernetes version for the EKS cluster",                    "type": "string",  "default": "1.31",        "required": false },
+    { "name": "node_instance_type","description": "EC2 instance type for EKS worker nodes",                   "type": "string",  "default": "t3.medium",   "required": false },
+    { "name": "node_count",        "description": "Desired number of EKS worker nodes",                       "type": "number",  "default": 2,             "required": false },
+    { "name": "s3_bucket_name",    "description": "Name for the S3 storage bucket (must be globally unique)", "type": "string",  "default": null,          "required": true },
+    { "name": "cloudfront_price_class","description":"CloudFront price class",                                 "type": "string",  "default": "PriceClass_100","required": false },
+    { "name": "certificate_arn",   "description": "ACM certificate ARN for ALB Ingress HTTPS",               "type": "string",  "default": null,          "required": true }
+  ],
+  "securityBaseline": {
+    "enableVpcFlowLogs": true,
+    "enforceHttps": true
+  }
+}

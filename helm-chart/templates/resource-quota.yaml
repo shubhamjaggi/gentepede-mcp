@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: {{ .Release.Name }}-quota
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ .Release.Name }}
+    managed-by: gentepede-mcp
+spec:
+  hard:
+    # Caps the total compute that all pods in this namespace can consume.
+    # Without quotas, one misbehaving deployment can starve all other workloads
+    # on the cluster (CPU starvation, OOM kills, evictions).
+    requests.cpu: "2"
+    requests.memory: "2Gi"
+    limits.cpu: "4"
+    limits.memory: "4Gi"
+    # Limit the number of pods to prevent accidental runaway deployments.
+    pods: "20"
+    # Limit services and PVCs to control resource sprawl.
+    services: "10"
+    persistentvolumeclaims: "5"

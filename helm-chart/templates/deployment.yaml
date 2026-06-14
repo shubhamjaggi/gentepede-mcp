@@ -1,0 +1,87 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ .Release.Name }}
+    environment: {{ .Values.environment }}
+    managed-by: gentepede-mcp
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}
+        environment: {{ .Values.environment }}
+    spec:
+      securityContext:
+        runAsNonRoot: true        # Container must not run as root (UID 0). A root process
+                                  # inside a container has the same powers as root on the host
+                                  # if the container escapes. Non-root limits blast radius.
+        runAsUser: 1000           # Explicit UID — image must have a user with this ID.
+        fsGroup: 2000             # Group ownership for mounted volumes; allows the app
+                                  # to write to declared volume mounts as group 2000.
+      containers:
+        - name: {{ .Release.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.containerPort }}
+              protocol: TCP
+          securityContext:
+            allowPrivilegeEscalation: false   # Container cannot gain more privileges than
+                                              # its parent process, even via setuid binaries.
+                                              # Prevents classic privilege escalation attacks.
+            readOnlyRootFilesystem: true       # Container cannot write to its own filesystem.
+                                              # Forces all writes to declared volume mounts.
+                                              # Makes malware persistence significantly harder.
+            capabilities:
+              drop:
+                - ALL                          # Drop all Linux capabilities by default.
+                                              # Without this, containers retain capabilities
+                                              # like NET_RAW (packet sniffing) and SYS_PTRACE
+                                              # (process debugging) inherited from the kernel.
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.health.liveness.path }}
+              port: {{ .Values.containerPort }}
+            initialDelaySeconds: 30   # Spring Boot needs ~20s to start; 30s prevents false kills.
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.health.readiness.path }}
+              port: {{ .Values.containerPort }}
+            initialDelaySeconds: 10   # Readiness is faster — app signals when ready.
+            periodSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: {{ .Values.resources.requests.cpu | quote }}
+              memory: {{ .Values.resources.requests.memory | quote }}
+            limits:
+              cpu: {{ .Values.resources.limits.cpu | quote }}
+              memory: {{ .Values.resources.limits.memory | quote }}
+          volumeMounts:
+            - name: tmp-dir
+              mountPath: /tmp              # readOnlyRootFilesystem=true means the app
+                                           # needs an explicit writable /tmp if it creates temp files.
+      volumes:
+        - name: tmp-dir
+          emptyDir: {}                     # ephemeral in-memory volume for temp files only
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname   # Spread pods across different nodes.
+                                                      # Without this, all replicas could land on
+                                                      # the same node; a single node failure takes
+                                                      # the entire service down.
+                labelSelector:
+                  matchLabels:
+                    app: {{ .Release.Name }}

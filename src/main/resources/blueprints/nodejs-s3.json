@@ -1,0 +1,38 @@
+{
+  "blueprintId": "nodejs-s3",
+  "displayName": "Node.js + S3 (Lambda + CloudFront)",
+  "description": "Deploys a Node.js serverless API using AWS Lambda and API Gateway, with S3 for object storage and CloudFront as the CDN. Enforces HTTPS-only CloudFront distribution, S3 encryption at rest with KMS, public-access block on all S3 buckets, and least-privilege Lambda execution roles.",
+  "outputType": "TERRAFORM_ONLY",
+  "templateFamily": "lambda",
+  "terraformProviderVersion": "5.82.0",
+  "lastVerifiedDate": "2025-06",
+  "techStack": {
+    "language": "JavaScript/TypeScript",
+    "framework": "Node.js",
+    "database": null
+  },
+  "awsResources": [
+    { "type": "LAMBDA",      "required": true, "defaultConfig": { "runtime": "nodejs20.x", "timeout": 30, "memory": 256 } },
+    { "type": "API_GATEWAY", "required": true, "defaultConfig": {} },
+    { "type": "S3_BUCKET",   "required": true, "defaultConfig": { "versioning": true } },
+    { "type": "CLOUDFRONT",  "required": true, "defaultConfig": {} },
+    { "type": "KMS",         "required": true, "defaultConfig": {} }
+  ],
+  "variables": [
+    { "name": "project_name",        "description": "Unique name for this deployment (alphanumeric + hyphens)", "type": "string",  "default": null,       "required": true },
+    { "name": "aws_region",          "description": "AWS region to deploy into",                                  "type": "string",  "default": "us-east-1","required": false },
+    { "name": "aws_profile",         "description": "AWS CLI profile name (PRODUCTION only)",                    "type": "string",  "default": "default",  "required": false },
+    { "name": "environment",         "description": "Deployment environment tag (e.g. dev, staging, prod)",      "type": "string",  "default": "dev",      "required": false },
+    { "name": "lambda_zip_path",     "description": "Path to the Lambda deployment ZIP file",                    "type": "string",  "default": null,       "required": true },
+    { "name": "lambda_handler",      "description": "Lambda handler in the form file.function",                  "type": "string",  "default": "index.handler","required": false },
+    { "name": "lambda_runtime",      "description": "Lambda runtime identifier",                                  "type": "string",  "default": "nodejs20.x","required": false },
+    { "name": "lambda_timeout",      "description": "Lambda function timeout in seconds",                        "type": "number",  "default": 30,         "required": false },
+    { "name": "lambda_memory",       "description": "Lambda function memory in MiB",                            "type": "number",  "default": 256,        "required": false },
+    { "name": "s3_bucket_name",      "description": "Name for the S3 storage bucket (must be globally unique)", "type": "string",  "default": null,       "required": true },
+    { "name": "cloudfront_price_class","description":"CloudFront price class (PriceClass_100, PriceClass_200, PriceClass_All)","type": "string","default": "PriceClass_100","required": false }
+  ],
+  "securityBaseline": {
+    "enableVpcFlowLogs": true,
+    "enforceHttps": true
+  }
+}

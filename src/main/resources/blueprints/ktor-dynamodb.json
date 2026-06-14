@@ -1,0 +1,38 @@
+{
+  "blueprintId": "ktor-dynamodb",
+  "displayName": "Ktor + DynamoDB (ECS Fargate)",
+  "description": "Deploys a Ktor application on ECS Fargate with DynamoDB as the data store, an Application Load Balancer for HTTPS traffic, and a private VPC. Enforces least-privilege IAM task roles with explicit DynamoDB action grants.",
+  "outputType": "TERRAFORM_ONLY",
+  "templateFamily": "ecs",
+  "terraformProviderVersion": "5.82.0",
+  "lastVerifiedDate": "2025-06",
+  "techStack": {
+    "language": "Kotlin",
+    "framework": "Ktor",
+    "database": "DynamoDB"
+  },
+  "awsResources": [
+    { "type": "VPC",            "required": true, "defaultConfig": { "cidr": "10.0.0.0/16" } },
+    { "type": "ALB",            "required": true, "defaultConfig": { "https_only": true } },
+    { "type": "ECS_FARGATE",    "required": true, "defaultConfig": { "cpu": 512, "memory": 1024 } },
+    { "type": "DYNAMODB_TABLE", "required": true, "defaultConfig": { "billing_mode": "PAY_PER_REQUEST" } }
+  ],
+  "variables": [
+    { "name": "project_name",     "description": "Unique name for this deployment (alphanumeric + hyphens)", "type": "string",  "default": null,          "required": true },
+    { "name": "aws_region",       "description": "AWS region to deploy into",                                  "type": "string",  "default": "us-east-1",   "required": false },
+    { "name": "aws_profile",      "description": "AWS CLI profile name (PRODUCTION only)",                    "type": "string",  "default": "default",     "required": false },
+    { "name": "environment",      "description": "Deployment environment tag (e.g. dev, staging, prod)",      "type": "string",  "default": "dev",         "required": false },
+    { "name": "container_image",  "description": "Full ECR image URI including tag",                          "type": "string",  "default": null,          "required": true },
+    { "name": "container_port",   "description": "Port the Ktor application listens on",                      "type": "number",  "default": 8080,          "required": false },
+    { "name": "task_cpu",         "description": "ECS task CPU units (256, 512, 1024, 2048, 4096)",           "type": "number",  "default": 512,           "required": false },
+    { "name": "task_memory",      "description": "ECS task memory in MiB",                                    "type": "number",  "default": 1024,          "required": false },
+    { "name": "desired_count",    "description": "Number of ECS task instances to run",                       "type": "number",  "default": 2,             "required": false },
+    { "name": "dynamodb_table_name","description": "Name of the DynamoDB table",                              "type": "string",  "default": "app-table",   "required": false },
+    { "name": "dynamodb_hash_key","description": "DynamoDB partition key attribute name",                     "type": "string",  "default": "id",          "required": false },
+    { "name": "certificate_arn",  "description": "ACM certificate ARN for ALB HTTPS listener",               "type": "string",  "default": null,          "required": true }
+  ],
+  "securityBaseline": {
+    "enableVpcFlowLogs": true,
+    "enforceHttps": true
+  }
+}

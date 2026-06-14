@@ -1,0 +1,40 @@
+# Default values for gentepede-app.
+# InfrastructureService overrides these per-project at generate time.
+# All {{ .Values.* }} references in templates map to keys here.
+
+replicaCount: 2
+
+image:
+  repository: ""      # set per project (ECR URI) — never a public registry default
+  tag: ""             # set per project — never "latest"
+  pullPolicy: IfNotPresent
+
+containerPort: 8080   # InfrastructureService overrides: Spring Boot=8080, Node.js=3000, FastAPI=8000
+
+health:
+  liveness:
+    path: /health     # InfrastructureService overrides: Spring Boot=/actuator/health
+  readiness:
+    path: /ready      # InfrastructureService overrides: Spring Boot=/actuator/health/readiness
+
+resources:
+  requests:
+    cpu: "250m"
+    memory: "256Mi"
+  limits:
+    cpu: "500m"
+    memory: "512Mi"
+
+autoscaling:
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+
+servicePort: 80
+
+# Project metadata — set by InfrastructureService at generate time
+projectName: ""
+environment: "dev"
+
+# Namespace where the application is deployed
+namespace: ""

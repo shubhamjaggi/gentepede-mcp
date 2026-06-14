@@ -1,0 +1,48 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Release.Name }}-network-policy
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ .Release.Name }}
+    managed-by: gentepede-mcp
+spec:
+  podSelector:
+    matchLabels:
+      app: {{ .Release.Name }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow traffic only from the ingress-nginx or aws-load-balancer-controller namespace.
+    # Without a NetworkPolicy, any pod in any namespace can reach this service.
+    # A compromised pod elsewhere in the cluster could exfiltrate data or pivot into this service.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - port: {{ .Values.containerPort }}
+          protocol: TCP
+  egress:
+    # Allow DNS resolution — without this, pods cannot resolve service names or external hosts.
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    # Allow HTTPS egress for AWS API calls (ECR, Secrets Manager, etc.) and external dependencies.
+    - ports:
+        - port: 443
+          protocol: TCP
+    # Allow PostgreSQL egress to the RDS subnet (private subnet CIDR).
+    - ports:
+        - port: 5432
+          protocol: TCP
+    # Allow Redis egress to the ElastiCache subnet.
+    - ports:
+        - port: 6379
+          protocol: TCP

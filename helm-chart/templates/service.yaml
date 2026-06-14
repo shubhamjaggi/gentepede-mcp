@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ .Release.Name }}
+    managed-by: gentepede-mcp
+  annotations:
+    # ALB Ingress Controller discovers this service via the Ingress spec;
+    # no annotations are needed here. Internal traffic uses ClusterIP.
+spec:
+  type: ClusterIP   # Not LoadBalancer — external traffic enters via the ALB Ingress,
+                    # not directly to pods. ClusterIP is internal-only, reducing attack surface.
+  selector:
+    app: {{ .Release.Name }}
+  ports:
+    - name: http
+      port: {{ .Values.servicePort }}
+      targetPort: {{ .Values.containerPort }}
+      protocol: TCP
