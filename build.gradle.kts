@@ -18,7 +18,7 @@ repositories {
 
 dependencies {
     // MCP SDK — official Kotlin implementation, handles JSON-RPC + stdio transport
-    implementation("io.modelcontextprotocol:kotlin-sdk:0.4.0")
+    implementation("io.modelcontextprotocol:kotlin-sdk:0.13.0")
 
     // JSON serialization — used for blueprint parsing and lock file I/O
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
