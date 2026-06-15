@@ -1,5 +1,7 @@
 # Tools Reference
 
+This document covers each tool's inputs, outputs, and when to use it. For a deep dive into how each tool works under the hood — every code layer, every CLI command, every file written — see [docs/16-tool-architecture.md](16-tool-architecture.md).
+
 ## Workflow Order
 
 ```
@@ -45,7 +47,7 @@ Framework:          Spring Boot (Java/Kotlin)
 Database:           PostgreSQL
 AWS Resources:      VPC, ALB, ECS_FARGATE, RDS_POSTGRES, KMS
 Provider Version:   5.82.0
-Last Verified:      2025-06
+Last Verified:      2026-06
 ------------------------------------------------------------
 ...
 ```
@@ -209,6 +211,19 @@ Next Step: Review the plan above, then run apply_infrastructure_package.
 ```json
 { "project_name": "my-api" }
 ```
+
+**Success response:**
+```
+Apply Complete: my-api
+============================================================
+Apply successful. Resources created.
+...
+
+State backup: /Users/you/.gentepede/backups/my-api/2025-06-14T10-30-00Z.tfstate
+Lock file updated: /Users/you/.gentepede/workspaces/my-api/gentepede.lock.json
+```
+
+For EKS (`TERRAFORM_K8S`) blueprints, the response also includes a "Helm Deploy Output:" section after the Terraform apply output.
 
 **Error responses:**
 - `Error: No valid plan file found. Run plan_infrastructure_package first.` — plan missing or checksum mismatch

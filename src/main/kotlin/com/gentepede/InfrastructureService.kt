@@ -274,7 +274,7 @@ class InfrastructureService {
         val kubeScoreResult = if (isK8s) {
             Validator.runKubeScore(workspaceDir.toFile(), projectName)
         } else {
-            KubeScoreResult(passed = true, skipped = false, findings = emptyList())
+            KubeScoreResult(passed = true, skipped = true, findings = emptyList())
         }
 
         val summary = buildValidationSummary(validateResult, checkovResult, kubeScoreResult)

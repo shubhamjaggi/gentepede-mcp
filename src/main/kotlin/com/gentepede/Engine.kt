@@ -10,8 +10,8 @@ import kotlinx.serialization.json.*
  * - Extract and validate parameters from MCP tool call arguments
  * - Call the appropriate [InfrastructureService] method
  * - Format the result as a human-readable [CallToolResult] string
- * - Translate [ProcessExecutionException] and [IllegalArgumentException] into
- *   error [CallToolResult] responses
+ * - Translate [ProcessExecutionException], [IllegalStateException], and
+ *   [IllegalArgumentException] into error [CallToolResult] responses
  *
  * Does NOT:
  * - Contain any business logic (that lives in [InfrastructureService])

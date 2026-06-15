@@ -1,3 +1,45 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Kubernetes ResourceQuota — Namespace-Level Resource Limits
+#
+# A ResourceQuota sets a hard ceiling on how much compute (CPU, memory) and how
+# many objects (pods, services, PVCs) can exist in a NAMESPACE.
+#
+# WHY THIS MATTERS:
+# Without quotas, a single runaway deployment can consume all CPU and memory on
+# the cluster's worker nodes, starving every other workload. Examples:
+#   - A bug causes an HPA to spin up 1000 pods instead of 10
+#   - A memory leak makes pods consume all available node memory
+#   - A developer accidentally creates 50 Services while debugging
+# ResourceQuota makes these scenarios impossible — the cluster rejects new objects
+# once the namespace hits its ceiling.
+#
+# HOW REQUESTS VS LIMITS WORK:
+#   requests.cpu / requests.memory  — the MINIMUM guaranteed resources. The
+#     Kubernetes scheduler uses requests to decide which node has enough capacity
+#     to place a pod. The sum of all pod requests cannot exceed the quota.
+#
+#   limits.cpu / limits.memory  — the MAXIMUM the pod is allowed to consume.
+#     CPU: if a container exceeds its limit, the kernel throttles it (slows it
+#          down) — it doesn't crash.
+#     Memory: if a container exceeds its limit, the kernel kills it with OOMKill
+#             (Out Of Memory Kill) — the pod restarts.
+#
+#   The quota enforces sums: total requests.cpu for all pods ≤ "2", etc.
+#
+# THIS NAMESPACE'S CEILINGS:
+#   requests.cpu: "2"      — sum of all pod CPU requests ≤ 2 vCPUs
+#   requests.memory: "2Gi" — sum of all pod memory requests ≤ 2 GiB
+#   limits.cpu: "4"        — sum of all pod CPU limits ≤ 4 vCPUs
+#   limits.memory: "4Gi"   — sum of all pod memory limits ≤ 4 GiB
+#   pods: "20"             — at most 20 pods in this namespace
+#   services: "10"         — at most 10 Services
+#   persistentvolumeclaims: "5" — at most 5 PersistentVolumeClaims
+#
+# IMPORTANT: when a ResourceQuota is in effect, EVERY pod must declare
+# resources.requests and resources.limits. Pods without resource declarations
+# are rejected by the API server. This is why the Deployment template's
+# resources block is mandatory, not optional.
+# ─────────────────────────────────────────────────────────────────────────────
 apiVersion: v1
 kind: ResourceQuota
 metadata:

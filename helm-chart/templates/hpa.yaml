@@ -1,3 +1,27 @@
+# HorizontalPodAutoscaler (HPA) — automatic pod scaling based on CPU utilization.
+#
+# The HPA controller watches CPU across all pods in the target Deployment and
+# continuously adjusts the replica count to keep utilization near the target.
+#
+# How scaling decisions are made:
+#   1. The Kubernetes metrics-server samples CPU/memory from each pod every 15s.
+#   2. HPA computes: desired replicas = ceil(current_utilization / target × current_replicas)
+#   3. It patches the Deployment's replica count up (above target) or down (below target),
+#      subject to minReplicas and maxReplicas bounds.
+#
+# minReplicas: never scale below this. Set to 2 because a single pod is a Single
+#              Point of Failure — if it crashes, there is a gap in availability
+#              until a replacement pod passes its readiness probe (~10–30s for
+#              Spring Boot, ~3s for Node.js). Two pods ensures zero downtime.
+#
+# maxReplicas: ceiling to prevent a traffic spike or a metrics bug from scaling
+#              to thousands of pods and consuming the entire cluster's capacity.
+#
+# Why CPU and not memory?
+#   CPU utilization rises and falls directly with request rate, making it a reliable
+#   scaling signal for request-serving applications. Memory growth in JVM apps (like
+#   Spring Boot) is often steady-state due to heap behavior — scaling on memory would
+#   trigger premature or incorrect scale-out events.
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:

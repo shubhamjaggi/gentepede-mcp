@@ -23,7 +23,7 @@ You tell Claude which blueprint fits your application (e.g. `springboot-postgres
 - A `providers.tf` tuned for either LocalStack (free, local) or real AWS (production)
 - For EKS blueprints: a production-ready Helm chart with hardened pod security contexts, NetworkPolicy, HPA, and ResourceQuota
 
-Then you run a four-step pipeline: **generate → validate → plan → apply**.
+Then you run a five-step workflow: **list → generate → validate → plan → apply**.
 
 ## A Concrete Example
 

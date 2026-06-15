@@ -2,6 +2,34 @@
 # Covers the nodejs-s3 blueprint: Lambda + API Gateway + S3 + CloudFront.
 # providers.tf is NOT here — written at runtime by InfrastructureService.
 
+# ─────────────────────────────────────────────────────────────────────────────
+# HOW RESOURCE GATING WORKS (Lambda family: nodejs-s3)
+#
+# The Lambda template family currently covers one blueprint: nodejs-s3.
+# Unlike the ECS and EKS families, there are NO conditional boolean toggles here.
+# Every resource in this file is ALWAYS provisioned — the nodejs-s3 blueprint
+# always deploys Lambda + API Gateway + S3 + CloudFront + KMS together.
+#
+# Why no toggles? Because serverless Node.js APIs have a tightly coupled stack:
+#   Lambda         — the compute (runs the function code)
+#   API Gateway    — the HTTPS trigger (exposes Lambda to the internet)
+#   S3             — persistent object storage for the function
+#   CloudFront     — CDN and HTTPS termination in front of API Gateway
+#   KMS            — encryption key for S3 objects and Lambda env vars
+#
+# These five services are inseparable for a production serverless API. There is
+# no useful variant of nodejs-s3 that omits, say, S3 but keeps Lambda.
+#
+# InfrastructureService.injectDataTierToggles() leaves the lambda template
+# family untouched — no boolean flags are injected into terraform.tfvars.
+#
+# Why Node.js + Lambda instead of ECS Fargate?
+#   ECS Fargate: long-running server process, always-on, billed per second running
+#   Lambda:      event-driven, runs only when invoked, billed per invocation.
+#                Ideal for APIs with variable or low traffic (< 1M req/month is
+#                often cheaper than a running ECS task).
+# ─────────────────────────────────────────────────────────────────────────────
+
 data "aws_region" "current" {}
 data "aws_caller_identity" "current" {}
 
@@ -76,6 +104,31 @@ resource "aws_s3_bucket_public_access_block" "app" {
   restrict_public_buckets = true
 }
 
+# ─────────────────────────────────────────────────────────────────────────────
+# S3 LIFECYCLE RULE — Automatic Cost-Reduction Through Storage Tiering
+#
+# S3 offers several storage classes with different cost/latency trade-offs:
+#
+#   STANDARD         ~$0.023/GB/mo  — immediate access, low latency
+#   STANDARD_IA      ~$0.0125/GB/mo — infrequent access, retrieval fee applies
+#   GLACIER          ~$0.004/GB/mo  — archive storage, retrieval takes 3–5 hours
+#   GLACIER_DEEP_ARCHIVE ~$0.00099/GB/mo — coldest storage, 12-hour retrieval
+#
+# A LIFECYCLE RULE automatically moves objects between storage classes (or
+# deletes them) based on age. Without lifecycle rules, all objects stay in
+# STANDARD forever and you pay full price even for files no one accesses.
+#
+# This rule: after 90 days → move to GLACIER
+#   Objects uploaded by the Lambda function (logs, user data, generated files)
+#   are unlikely to be frequently accessed after 90 days. Moving them to Glacier
+#   reduces cost by ~83% with no manual action required.
+#
+# When to change this:
+#   - Increase the transition_days if your use case accesses older objects frequently
+#   - Add a second transition to DEEP_ARCHIVE for objects older than 365 days
+#   - Add an expiration rule if objects can be deleted after a certain age
+#   - If objects must be instantly retrievable indefinitely, remove this rule
+# ─────────────────────────────────────────────────────────────────────────────
 # Lifecycle rule: move objects to Glacier after 90 days to control storage costs
 # while retaining long-term audit data.
 resource "aws_s3_bucket_lifecycle_configuration" "app" {
@@ -93,7 +146,25 @@ resource "aws_s3_bucket_lifecycle_configuration" "app" {
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
-# CLOUDWATCH LOG GROUP — Lambda function logs
+# CLOUDWATCH LOG GROUP — Lambda Function Logs
+#
+# Amazon CloudWatch Logs stores logs from Lambda functions. When the function
+# writes to stdout/stderr (console.log in Node.js), Lambda automatically streams
+# those lines to the log group /aws/lambda/<function-name>.
+#
+# We create this log group explicitly (rather than letting Lambda auto-create it)
+# for two reasons:
+#   1. KMS encryption: auto-created log groups use AWS-managed keys.
+#      Explicitly creating the group lets us attach our project KMS key.
+#   2. Retention: auto-created log groups retain logs forever (unbounded cost).
+#      Setting retention_in_days = 30 automatically purges logs older than 30 days.
+#
+# The depends_on in the Lambda function resource ensures this group exists before
+# the function starts, preventing a race condition where the first invocation
+# tries to log before the group exists.
+#
+# See the ECS template's CloudWatch Log Group section for the full concept
+# explanation of what CloudWatch Logs is and when to use it vs S3.
 # ─────────────────────────────────────────────────────────────────────────────
 
 resource "aws_cloudwatch_log_group" "lambda" {
@@ -110,6 +181,27 @@ resource "aws_cloudwatch_log_group" "lambda" {
 
 # ─────────────────────────────────────────────────────────────────────────────
 # IAM — Lambda Execution Role (CKV_AWS_111)
+#
+# Every Lambda function needs an IAM execution role. AWS assumes this role on
+# behalf of the function when it runs. The role controls which AWS services the
+# function code is allowed to call.
+#
+# Trust policy: `lambda.amazonaws.com` — only the Lambda service can assume this
+# role. A person or another service cannot use these permissions directly.
+#
+# This role grants three capabilities (all explicitly listed, no wildcards):
+#   CloudWatch Logs: write log events to the specific log group created above
+#   S3: read/write/list/delete objects in this specific bucket only
+#   KMS: decrypt and generate data keys using this project's KMS key
+#
+# What this role CANNOT do (by omission):
+#   - Access any other S3 bucket
+#   - Call DynamoDB, RDS, SNS, SQS, or any other service
+#   - Assume other IAM roles
+#
+# Why use aws_iam_role_policy (inline policy) vs aws_iam_policy + attachment?
+#   Inline policies are scoped to one role and deleted with it — no orphaned
+#   managed policies. For a project-specific role with no sharing, inline is cleaner.
 # ─────────────────────────────────────────────────────────────────────────────
 
 data "aws_iam_policy_document" "lambda_assume" {
@@ -175,7 +267,27 @@ resource "aws_iam_role_policy" "lambda" {
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
-# LAMBDA FUNCTION
+# AWS LAMBDA — Serverless Function Compute
+#
+# AWS Lambda runs code without provisioning servers. You upload a ZIP containing
+# your Node.js function; Lambda executes it on demand and bills per invocation
+# and per 100ms of execution time. Cost approaches zero for low-traffic APIs.
+#
+# Key concepts for this resource:
+#   handler    — the exported function Lambda calls: "index.handler" means the
+#                `handler` export in the file `index.js` inside the ZIP
+#   runtime    — the execution environment: nodejs20.x = Node.js 20 LTS
+#   memory     — RAM in MiB; Lambda CPU scales proportionally with memory
+#   timeout    — max execution duration; API Gateway enforces a 29s hard cap
+#   cold start — first invocation after idle takes ~100–500ms for Node.js as
+#                Lambda boots a new execution environment; warm invocations reuse it
+#
+# source_code_hash: triggers redeployment whenever the ZIP content changes.
+# Without it, Terraform considers the function unchanged even when code updates.
+#
+# The IAM execution role (aws_iam_role.lambda) controls what AWS services the
+# function code can call. It is scoped to: S3 (this bucket only) + CloudWatch
+# Logs + KMS decrypt. No other AWS services are reachable from this function.
 # ─────────────────────────────────────────────────────────────────────────────
 
 resource "aws_lambda_function" "app" {
@@ -203,9 +315,27 @@ resource "aws_lambda_function" "app" {
     }
   }
 
-  # reserved_concurrent_executions = -1 means unreserved (uses account pool).
-  # Set a positive integer to cap concurrency and prevent runaway invocations
-  # from exhausting account-level Lambda concurrency.
+  # ─────────────────────────────────────────────────────────────────────────
+  # LAMBDA CONCURRENCY — How Many Simultaneous Invocations Are Allowed
+  #
+  # Lambda scales horizontally: each concurrent request gets its own execution
+  # environment. By default, an AWS account has a concurrency limit of 1000
+  # across ALL Lambda functions in the region. A single function under heavy
+  # traffic could consume the entire pool, throttling every other function.
+  #
+  # reserved_concurrent_executions = -1:
+  #   "Unreserved" — this function draws from the shared account pool.
+  #   -1 means no reservation (not "0 concurrency", which would disable the function).
+  #
+  # To prevent one function from monopolizing concurrency:
+  #   reserved_concurrent_executions = 100
+  #   This reserves 100 executions exclusively for this function AND caps it at 100.
+  #   If traffic exceeds 100 concurrent requests, Lambda throttles (returns 429)
+  #   rather than consuming other functions' capacity.
+  #
+  # Set a reservation if: this function shares an account with other critical
+  # functions, or if you need to guarantee a minimum capacity under traffic spikes.
+  # ─────────────────────────────────────────────────────────────────────────
   reserved_concurrent_executions = -1
 
   depends_on = [aws_cloudwatch_log_group.lambda]
@@ -218,7 +348,25 @@ resource "aws_lambda_function" "app" {
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
-# API GATEWAY — HTTP API (v2)
+# AWS API GATEWAY — HTTP API (v2)
+#
+# API Gateway creates an HTTPS endpoint that invokes the Lambda function.
+# Without it, Lambda cannot receive web traffic — it can only be invoked via
+# the AWS SDK/CLI directly.
+#
+# We use the v2 HTTP API (not the older REST API v1) because:
+#   • Lower latency: ~10ms overhead vs ~60ms for REST API
+#   • Lower cost: ~$1/million requests vs ~$3.50/million for REST API
+#   • Native Lambda integration: payload format 2.0 is simpler and faster
+#   • auto_deploy = true: no manual "Create Deployment" step after route changes
+#
+# Four resources wire the API together:
+#   aws_apigatewayv2_api         — the API definition (name, protocol, CORS rules)
+#   aws_apigatewayv2_integration — "forward all requests to this Lambda function"
+#   aws_apigatewayv2_route       — "$default" catches every unmatched route/method
+#   aws_apigatewayv2_stage       — the deployment stage; auto_deploy rebuilds on change
+#   aws_lambda_permission        — grants API Gateway permission to invoke the function
+#
 # HTTP API is lower cost and lower latency than REST API for simple proxy integrations.
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -226,6 +374,33 @@ resource "aws_apigatewayv2_api" "main" {
   name          = "${var.project_name}-api"
   protocol_type = "HTTP"
 
+  # ───────────────────────────────────────────────────────────────────────────
+  # CORS (Cross-Origin Resource Sharing) — Browser Security Policy for APIs
+  #
+  # Browsers enforce the Same-Origin Policy: a web page at https://app.com
+  # cannot make JavaScript fetch() calls to https://api.com unless the API
+  # explicitly allows it. CORS is the mechanism by which an API declares which
+  # origins (other domains) are allowed to call it from a browser.
+  #
+  # How it works:
+  #   1. Browser sends a "preflight" OPTIONS request to the API before the real call
+  #   2. API Gateway responds with CORS headers (Access-Control-Allow-*)
+  #   3. If the origin, method, and headers match, the browser proceeds with the real call
+  #   4. If they don't match, the browser blocks the request — the API is never called
+  #
+  # allow_origins = ["*"]:
+  #   Allows any origin to call this API. Appropriate for truly public APIs.
+  #   For production, restrict to your specific frontend domain:
+  #   allow_origins = ["https://app.mycompany.com"]
+  #
+  # allow_methods: the HTTP methods browsers can use (GET, POST, PUT, DELETE, OPTIONS)
+  # allow_headers: headers browsers are allowed to include (Content-Type, Authorization)
+  # max_age = 3600: browsers cache the preflight result for 1 hour, avoiding
+  #   a preflight request before every API call
+  #
+  # Note: CORS is a BROWSER enforcement. CLI tools (curl, Postman, backend services)
+  # are not subject to CORS — only web browser JavaScript is restricted.
+  # ───────────────────────────────────────────────────────────────────────────
   cors_configuration {
     allow_origins = ["*"] # tighten per environment — allow specific origins in prod
     allow_methods = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
@@ -286,6 +461,36 @@ resource "aws_apigatewayv2_stage" "default" {
   }
 }
 
+# ─────────────────────────────────────────────────────────────────────────────
+# LAMBDA RESOURCE-BASED POLICY — Granting API Gateway Permission to Invoke
+#
+# Lambda uses TWO types of access control simultaneously:
+#
+#   1. IAM EXECUTION ROLE (identity-based policy, above):
+#      Controls what the Lambda function can DO when it runs — which AWS services
+#      it can call (S3, CloudWatch, KMS). This is attached to the function itself.
+#
+#   2. RESOURCE-BASED POLICY (aws_lambda_permission — this resource):
+#      Controls who can INVOKE the Lambda function. Without this, API Gateway
+#      would receive "Access Denied" when trying to call the function, even if
+#      the integration is correctly configured.
+#
+# aws_lambda_permission adds a statement to the Lambda function's resource policy:
+#   "Allow principal apigateway.amazonaws.com to call lambda:InvokeFunction
+#    on this function, but ONLY when the invocation comes from ARN: <this API>/*/*"
+#
+# The source_arn condition (/*/*) is important:
+#   It restricts which API Gateway can invoke this function. Without it, ANY
+#   API Gateway in your AWS account could invoke this Lambda — including someone
+#   else's accidentally misconfigured API. The /*/*  means: this API, any stage,
+#   any route. You can further restrict to specific stages or routes.
+#
+# Why is this separate from IAM role policies?
+#   IAM role policies are attached to identities (roles, users). Resource-based
+#   policies are attached to resources (Lambda functions, S3 buckets, KMS keys).
+#   Both must allow an action for it to succeed (neither alone is sufficient
+#   when cross-service invocation is involved).
+# ─────────────────────────────────────────────────────────────────────────────
 # Grant API Gateway permission to invoke the Lambda function.
 resource "aws_lambda_permission" "apigw" {
   statement_id  = "AllowAPIGatewayInvoke"
@@ -296,7 +501,21 @@ resource "aws_lambda_permission" "apigw" {
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
-# CLOUDFRONT DISTRIBUTION — CDN with HTTPS enforcement
+# AWS CLOUDFRONT — Global CDN + HTTPS Termination
+#
+# CloudFront sits in front of API Gateway for two reasons:
+#   1. Global edge network: CloudFront has 400+ edge locations. API Gateway exists
+#      only in one region. Routing requests through CloudFront reduces latency for
+#      users outside that region (e.g. a Tokyo user calling a us-east-1 API).
+#   2. Custom domain + TLS: CloudFront lets you attach an ACM certificate and a
+#      custom domain name (e.g. api.myapp.com) without modifying API Gateway.
+#      API Gateway's default endpoint is not user-friendly.
+#
+# Why CloudFront doesn't cache API responses here:
+#   min_ttl = default_ttl = max_ttl = 0 — every request passes through to
+#   the Lambda function. CloudFront is used for routing and TLS only, not caching.
+#   (For static asset caching, see the S3 + CloudFront pattern in the EKS template.)
+#
 # CloudFront terminates TLS at the edge and forwards requests to API Gateway.
 # CKV_AWS_2: HTTPS-only distribution, no plaintext HTTP forwarding.
 # ─────────────────────────────────────────────────────────────────────────────
@@ -340,14 +559,19 @@ resource "aws_cloudfront_distribution" "main" {
   }
 
   restrictions {
+    # geo_restriction: block access from specific countries (whitelist or blacklist).
+    # restriction_type = "none" means no geographic blocking — all countries can access.
+    # To block specific countries: restriction_type = "blacklist", locations = ["CN","RU"]
+    # To allow only specific countries: restriction_type = "whitelist", locations = ["US","GB"]
     geo_restriction {
       restriction_type = "none"
     }
   }
 
   viewer_certificate {
-    # cloudfront_default_certificate uses the CloudFront domain.
-    # Replace with acm_certificate_arn for a custom domain.
+    # cloudfront_default_certificate uses the *.cloudfront.net domain with HTTPS for free.
+    # Replace with acm_certificate_arn for a custom domain (must be in us-east-1).
+    # See the EKS CloudFront viewer_certificate block for the full ACM setup explanation.
     cloudfront_default_certificate = true
     minimum_protocol_version       = "TLSv1.2_2021"
   }

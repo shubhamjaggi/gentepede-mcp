@@ -34,6 +34,18 @@ The codebase deliberately separates concerns — please preserve this when contr
 
 See [docs/02-architecture.md](docs/02-architecture.md) for the full call graph.
 
+## Keeping the Repo in Sync
+
+Every change in Gentepede has dependents: code that calls it, docs that describe it, tests that verify it. **Before opening a PR, consult [docs/17-contributor-sync-guide.md](docs/17-contributor-sync-guide.md)** to find your change type and follow its complete sync checklist.
+
+Quick map:
+- Adding a blueprint → update 4 docs + register in InfrastructureService + add tests
+- New template family → update Models.kt + 5 docs + add tests
+- New MCP tool → update Engine.kt + InfrastructureService + 2 docs
+- Terraform template change → update HCL comments + resource map doc + re-run verifier
+- Helm chart change → update copyHelmChart() file list + buildHelmValues() + kubernetes guide
+- Provider version bump → update all 6 blueprints + run verifier against all
+
 ## Adding a Blueprint
 
 Adding support for a new tech stack is the most welcome kind of contribution.

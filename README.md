@@ -147,6 +147,11 @@ Gentepede embeds security best practices directly in every Terraform template an
 | [docs/10-adding-blueprints.md](docs/10-adding-blueprints.md) | Worked example: adding `go-dynamodb` end-to-end |
 | [docs/11-troubleshooting.md](docs/11-troubleshooting.md) | Every common error with exact message, cause, fix |
 | [docs/12-end-to-end-walkthrough.md](docs/12-end-to-end-walkthrough.md) | Complete Phase 1-7 walkthrough from fresh machine |
+| [docs/13-development-guide.md](docs/13-development-guide.md) | Build, test, debug, project structure for contributors |
+| [docs/14-faq.md](docs/14-faq.md) | Common questions from users and contributors |
+| [docs/15-blueprint-to-resource-map.md](docs/15-blueprint-to-resource-map.md) | Full mapping: which blueprint provisions which AWS services and why |
+| [docs/16-tool-architecture.md](docs/16-tool-architecture.md) | End-to-end architecture of all 8 tools: every layer, every CLI call, every file |
+| [docs/17-contributor-sync-guide.md](docs/17-contributor-sync-guide.md) | Complete sync checklist for every contributor change type (blueprint, template family, tool, Helm chart, provider bump) |
 
 ---
 

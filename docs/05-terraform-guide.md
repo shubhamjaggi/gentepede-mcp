@@ -147,6 +147,136 @@ actions = ["dynamodb:*"]  # Allows DynamoDB table deletion, admin operations
 resources = ["*"]          # Applies to ALL DynamoDB tables in the account
 ```
 
+### aws_ecs_task_definition + aws_ecs_service
+
+**Task definition** is the blueprint for your container: which Docker image to run, how much CPU/memory, environment variables, port mappings, and the logging configuration. One task definition can spawn many running tasks.
+
+**ECS service** is what keeps tasks running and connects them to the load balancer. It maintains the desired count (how many tasks run at once), handles rolling deployments (starts new tasks before stopping old ones), and registers tasks with the ALB target group so traffic can reach them.
+
+```hcl
+resource "aws_ecs_task_definition" "app" {
+  family                   = var.project_name
+  network_mode             = "awsvpc"      # Each task gets its own VPC network interface
+                                           # and private IP — required for Fargate and
+                                           # enables per-task security group assignment
+  requires_compatibilities = ["FARGATE"]   # No EC2 instances to manage
+  cpu                      = var.task_cpu
+  memory                   = var.task_memory
+  task_role_arn            = aws_iam_role.ecs_task.arn   # what YOUR CODE can do
+  execution_role_arn       = aws_iam_role.ecs_exec.arn   # what THE ECS AGENT can do
+  # ...
+}
+
+resource "aws_ecs_service" "app" {
+  desired_count                      = var.desired_count
+  deployment_minimum_healthy_percent = 100   # Never go below full capacity during deploy
+  deployment_maximum_percent         = 200   # Allow double capacity during rolling update
+  # ...
+}
+```
+
+`network_mode = "awsvpc"` is required for Fargate and gives each task its own ENI (network card) and private IP address. This makes tasks first-class VPC citizens — you can assign security groups directly to a task, just as you would to an EC2 instance.
+
+`deployment_minimum_healthy_percent = 100` combined with `deployment_maximum_percent = 200` means ECS starts the new version alongside the old version, waits for new tasks to pass health checks, then stops old tasks. Zero downtime.
+
+### aws_cloudwatch_log_group
+
+CloudWatch Logs collects stdout and stderr from every ECS task. Without an explicit log group, the `awslogs` log driver creates one automatically — but without a retention policy. Logs accumulate indefinitely and cost money.
+
+```hcl
+resource "aws_cloudwatch_log_group" "app" {
+  name              = "/ecs/${var.project_name}"
+  retention_in_days = 30
+  kms_key_id        = aws_kms_key.main.arn   # Encrypts logs at rest
+}
+```
+
+`retention_in_days = 30` deletes logs older than 30 days automatically. For production, adjust based on your compliance requirements (90 or 365 days are common).
+
+The log driver in the task definition connects the container to this log group:
+```hcl
+logConfiguration = {
+  logDriver = "awslogs"
+  options = {
+    "awslogs-group"  = "/ecs/${var.project_name}"
+    "awslogs-region" = var.aws_region
+    "awslogs-stream-prefix" = "ecs"
+  }
+}
+```
+
+`awslogs` is a built-in Docker log driver that captures stdout/stderr and sends them to CloudWatch without any library code in your application. You write to stdout, CloudWatch receives it.
+
+### aws_elasticache_replication_group (ElastiCache Redis)
+
+Used only when `var.enable_redis = true` (the `fastapi-redis` blueprint). ElastiCache provides a managed Redis cluster without EC2 instances to maintain.
+
+```hcl
+resource "aws_elasticache_replication_group" "redis" {
+  count = var.enable_redis ? 1 : 0
+
+  at_rest_encryption_enabled = true    # Encrypts data written to disk
+  transit_encryption_enabled = true    # Encrypts the Redis wire protocol (TLS)
+  auth_token                 = null    # No password (rely on VPC + SG isolation instead)
+  # ...
+}
+```
+
+**Why `replication_group` and not `aws_elasticache_cluster`?** The `at_rest_encryption_enabled` attribute is only supported on `aws_elasticache_replication_group`, not on `aws_elasticache_cluster`. Using `cluster` would prevent encryption at rest — a checkov violation.
+
+**Transit encryption (`transit_encryption_enabled = true`)** means all traffic between your ECS tasks and Redis is TLS-encrypted. Without it, Redis traffic travels in plaintext inside the VPC — readable to anyone who can observe VPC traffic (e.g. via a compromised EC2 instance).
+
+**Security group isolation** is the primary access control: only the ECS tasks security group can reach Redis on port 6379. No public IP, no direct internet access. Your application connects via the Redis endpoint hostname (which resolves to a private VPC IP), not via a password.
+
+## Resource Walkthrough: Lambda Family (nodejs-s3)
+
+The Lambda template (`templates/lambda/`) provisions a serverless stack with no VPC or containers.
+
+### aws_lambda_function
+
+- `kms_key_arn`: Encrypts environment variables at rest. Without this, environment variables (which may hold connection strings or tokens) are stored in plaintext.
+- `source_code_hash = filebase64sha256(var.lambda_zip_path)`: Forces a function update whenever the ZIP changes. Without it, Terraform does not redeploy even when code is updated.
+- `reserved_concurrent_executions = -1`: Unreserved (uses the account pool). Set a positive integer to cap concurrency and prevent runaway invocations from exhausting account-level Lambda limits.
+
+### aws_apigatewayv2_stage (access log format)
+
+The `access_log_settings.format` argument is **required** when the block is present. The `$context.*` tokens are API Gateway variable references, not Terraform interpolations — Terraform does not expand them.
+
+### aws_cloudfront_distribution (Lambda family)
+
+Sits in front of API Gateway. Uses `origin_protocol_policy = "https-only"` toward the origin and `viewer_protocol_policy = "redirect-to-https"` for viewers. The origin domain is the API Gateway endpoint with the `https://` prefix stripped.
+
+---
+
+## Resource Walkthrough: EKS Family
+
+The EKS template (`templates/eks/`) provisions the Kubernetes control plane, worker nodes, and optionally a database tier or a CDN-backed S3 bucket.
+
+### aws_eks_cluster + aws_eks_node_group
+
+The EKS cluster uses a dedicated IAM role (`AmazonEKSClusterPolicy`) and the node group uses a separate role (`AmazonEKSWorkerNodePolicy`, `AmazonEC2ContainerRegistryReadOnly`, `AmazonEKS_CNI_Policy`). These are the minimum policies AWS requires — no additional permissions are added.
+
+### RDS gating (enable_rds)
+
+The EKS family gates its RDS resources on `var.enable_rds`. `springboot-eks` has `RDS_POSTGRES` in its `awsResources` list so it gets `enable_rds = true`; `nodejs-eks` does not, so no RDS resources are created for it.
+
+### CloudFront + S3 (nodejs-eks)
+
+`nodejs-eks` provisions an S3 bucket for static assets and places CloudFront in front of it. The implementation uses **Origin Access Control (OAC)** rather than the older Origin Access Identity (OAI):
+
+```hcl
+resource "aws_cloudfront_origin_access_control" "app" {
+  count                             = var.s3_bucket_name != "" ? 1 : 0
+  origin_access_control_origin_type = "s3"
+  signing_behavior                  = "always"
+  signing_protocol                  = "sigv4"
+}
+```
+
+The S3 bucket remains fully private (`block_public_acls = true`). A bucket policy grants CloudFront read access via the OAC's service principal. This is the current AWS best practice — OAI is deprecated.
+
+---
+
 ## providers.tf — Why Runtime Generation?
 
 `providers.tf` is written at workspace creation time by InfrastructureService, not included in `templates/`. This enables the same template files to be used in both LOCAL and PRODUCTION mode by swapping the provider configuration. The alternative — two copies of each template — would double the maintenance burden and risk the copies diverging.

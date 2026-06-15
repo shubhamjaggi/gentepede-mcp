@@ -1,3 +1,43 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Kubernetes NetworkPolicy — Pod-Level Firewall Rules
+#
+# By default in Kubernetes, ALL pods can talk to ALL other pods in ALL
+# namespaces. This means a compromised pod (e.g., a vulnerability in an npm
+# dependency) could freely connect to your database pods, scrape credentials
+# from sidecar containers, or send data to the internet.
+#
+# A NetworkPolicy is a Kubernetes resource that restricts this open connectivity.
+# It acts as a firewall at the pod level, applied based on label selectors.
+#
+# KEY CONCEPT — Default Deny:
+#   When a NetworkPolicy selects a pod AND specifies policyTypes: [Ingress, Egress],
+#   ALL traffic not explicitly allowed by a rule is DENIED. This is "default deny"
+#   for those pods. Pods with no NetworkPolicy selecting them remain wide open.
+#
+# This policy selects pods with label `app: <release-name>` and enforces:
+#
+# INGRESS (traffic coming INTO the pod):
+#   Only allowed from the ingress-nginx namespace or kube-system namespace,
+#   on the application's container port. This means only the ALB Ingress
+#   Controller can reach the pod — not other application pods, not test pods,
+#   not anything from other namespaces.
+#
+# EGRESS (traffic going OUT FROM the pod):
+#   Four explicit allowances:
+#   - Port 53 (DNS)  — pods need DNS to resolve "my-service.default.svc.cluster.local"
+#                      or external hostnames like "rds.amazonaws.com"
+#   - Port 443 (HTTPS) — AWS API calls (ECR, Secrets Manager, S3, CloudWatch)
+#                        go over HTTPS; the NAT Gateway relays them to the internet
+#   - Port 5432 (PostgreSQL) — reach the RDS instance (for springboot-eks blueprint)
+#   - Port 6379 (Redis) — reach ElastiCache (if present)
+#
+# Without the DNS egress rule, the pod cannot resolve ANY hostname, including
+# Kubernetes internal service names. Everything would fail with name lookup errors.
+#
+# Note: NetworkPolicy is enforced by the CNI plugin (Container Network Interface).
+# The EKS cluster uses the Amazon VPC CNI which DOES support NetworkPolicy.
+# On a cluster without a CNI that supports NetworkPolicy, these rules are ignored.
+# ─────────────────────────────────────────────────────────────────────────────
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:

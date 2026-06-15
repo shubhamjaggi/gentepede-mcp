@@ -41,7 +41,13 @@ Verify: `docker --version`
 
 **macOS:** `brew install terraform`
 **Windows:** `choco install terraform`
-**Ubuntu:** `sudo apt-get install terraform` (after adding HashiCorp apt repository)
+**Ubuntu/Debian:**
+```bash
+wget -O- https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
+echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" \
+  | sudo tee /etc/apt/sources.list.d/hashicorp.list
+sudo apt-get update && sudo apt-get install terraform
+```
 
 Verify: `terraform -version`
 
@@ -112,8 +118,13 @@ Output: `build/libs/gentepede-mcp-all.jar`
 
 Verify:
 ```bash
-java -jar build/libs/gentepede-mcp-all.jar --help
-# Server starts and waits for stdin — Ctrl+C to exit
+# The server reads MCP JSON-RPC from stdin. A quick smoke test is to check the JAR exists:
+ls -lh build/libs/gentepede-mcp-all.jar
+
+# To confirm it starts, run it briefly and kill it:
+java -jar build/libs/gentepede-mcp-all.jar &
+sleep 1 && kill %1
+# No error = success. (It blocks on stdin — that is expected behaviour, not a hang.)
 ```
 
 ---

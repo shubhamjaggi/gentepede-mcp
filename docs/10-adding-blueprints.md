@@ -114,20 +114,33 @@ In Claude Desktop with `GENTEPEDE_MODE=LOCAL`:
 
 After the CI workflow passes, `lastVerifiedDate` is updated automatically. Before merging, set it manually to the current month:
 ```json
-"lastVerifiedDate": "2025-06"
+"lastVerifiedDate": "2026-06"
 ```
 
 ## PR Checklist
+
+### Code and Resources
 
 - [ ] `src/main/resources/blueprints/{id}.json` created with all required fields
 - [ ] `blueprintId` in JSON matches the filename (without `.json`)
 - [ ] `terraformProviderVersion` set to the current pinned version (check other blueprints)
 - [ ] `lastVerifiedDate` set to current `YYYY-MM`
 - [ ] Blueprint added to `InfrastructureService.listBlueprints()` ID list
-- [ ] If new template family needed: `templates/{family}/main.tf` + `variables.tf` created
+- [ ] `InfrastructureServiceTest.kt` — blueprint loading test added; data-tier toggle test added
+- [ ] If new template family needed: see [docs/17-contributor-sync-guide.md §2](17-contributor-sync-guide.md#2-add-a-new-template-family) — additional code changes required
 - [ ] If TERRAFORM_K8S: Helm values overrides added to `buildHelmValues()`
+
+### Documentation (all four must be updated)
+
+- [ ] `README.md` Supported Blueprints table — new row with all columns
+- [ ] `docs/04-blueprints-guide.md` "All Blueprints at a Glance" table — new row
+- [ ] `docs/15-blueprint-to-resource-map.md` — new section under the relevant template family (resource table + "why this tech stack" explanation)
+- [ ] `docs/00-glossary.md` — new entry for any AWS service introduced that is not already defined
+
+### Verification
+
 - [ ] Local validate passes (checkov clean, terraform validate clean)
 - [ ] Local plan produces expected resource list
 - [ ] CI job passes (or is explicitly waived with explanation in PR description)
-- [ ] Documentation added: update `docs/04-blueprints-guide.md` blueprint table
-- [ ] README.md Supported Blueprints table updated
+
+For the complete sync dependency map for all change types, see [docs/17-contributor-sync-guide.md](17-contributor-sync-guide.md).

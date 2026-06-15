@@ -1,3 +1,22 @@
+# Kubernetes Service — stable virtual network endpoint for a set of pods.
+#
+# Pods are ephemeral: they are replaced constantly by rollouts, crashes, and
+# scaling events, each time receiving a new internal IP address. A Service provides
+# a stable ClusterIP that other pods and the Ingress controller can address reliably,
+# regardless of which individual pods are alive at any moment.
+#
+# How external traffic reaches a pod (full chain):
+#   Internet → AWS ALB → ALB Ingress resource → Service (ClusterIP) → Pod
+#
+# Kubernetes Service types and why we use ClusterIP:
+#   ClusterIP (our choice): virtual IP reachable only inside the cluster.
+#                           External entry is handled by the ALB Ingress Controller,
+#                           which routes to this Service by name. Least exposure.
+#   NodePort:  opens a high port (30000–32767) on every worker node. Bypasses the
+#              Ingress/ALB entirely. Less secure; not suitable for production.
+#   LoadBalancer: provisions a separate AWS Network Load Balancer per Service.
+#              At scale this becomes expensive ($0.008/hr per NLB). We use one
+#              shared ALB for all services via the Ingress resource instead.
 apiVersion: v1
 kind: Service
 metadata:
