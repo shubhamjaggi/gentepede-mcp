@@ -158,9 +158,11 @@ For real end-to-end testing, configure Claude Desktop (see `docs/03-how-mcp-work
 
 ---
 
-## Running the Blueprint Verifier Directly
+## Running CI Tools Locally
 
-The weekly CI job uses `BlueprintVerifierKt` to validate each blueprint without Claude Desktop. You can run it locally:
+### Blueprint Verifier (generate + validate)
+
+Runs `generateWorkspace` + `validateWorkspace` (`terraform validate` + checkov). No AWS calls needed.
 
 ```bash
 ./gradlew shadowJar
@@ -171,9 +173,41 @@ GENTEPEDE_MODE=LOCAL java -cp build/libs/gentepede-mcp-all.jar \
   --project ci-test-sp
 ```
 
-Exit codes: 0 = pass, 1 = verification failed, 2 = bad arguments.
+Exit codes: 0 = pass, 1 = verification failed, 2 = bad arguments. Requires `terraform` and `checkov` in PATH.
 
-This requires `terraform` and `checkov` in PATH. It runs `generateWorkspace` + `validateWorkspace` without any AWS calls.
+### MCP Protocol Smoke Test
+
+Starts the JAR and verifies all 8 tools register correctly via JSON-RPC:
+
+```bash
+./gradlew shadowJar
+python3 .github/scripts/mcp-smoke-test.py
+```
+
+Exit 0 = all 8 tools present. No Terraform, LocalStack, or AWS needed.
+
+### Integration Verifier (full flow against LocalStack)
+
+Runs the complete generate → validate → plan → apply → drift → audit → destroy flow. Requires LocalStack running at `localhost:4566`.
+
+```bash
+# Start LocalStack (Docker required)
+docker run -d -p 4566:4566 localstack/localstack:3
+
+./gradlew shadowJar
+
+GENTEPEDE_MODE=LOCAL \
+AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test \
+java -cp build/libs/gentepede-mcp-all.jar \
+  com.gentepede.ci.IntegrationVerifierKt \
+  --blueprint ktor-dynamodb \
+  --project local-integration-test \
+  --var container_image=public.ecr.aws/docker/library/nginx:latest \
+  --var certificate_arn=arn:aws:acm:us-east-1:000000000000:certificate/test \
+  --var dynamodb_table_name=test-table
+```
+
+Exit codes: 0 = all 7 steps passed, 1 = a step failed, 2 = bad arguments.
 
 ---
 
@@ -221,30 +255,47 @@ The source Helm chart is in `helm-chart/`. After editing:
 
 ## CI Workflows
 
-### ci.yml — Build and Test
+Three workflows run against every push and pull request; one runs on a weekly schedule.
 
-Triggers on every push to `main` and every pull request.
+### ci.yml — Build, Test, Smoke Test, Blueprint Validate
 
-Steps:
-1. Checkout
-2. Set up Java 21 (Temurin) with Gradle cache
-3. `./gradlew build` — compiles, runs all tests
-4. `./gradlew shadowJar` — builds the fat JAR
+Triggers on every push to `main` and every pull request. Two parallel jobs:
 
-This workflow catches compilation errors, test failures, and mismatched imports.
+**Job 1 — `build-and-test`:**
+1. `./gradlew build` — compile + unit tests (InfrastructureServiceTest, ValidatorTest)
+2. `./gradlew shadowJar` — build fat JAR
+3. `python3 .github/scripts/mcp-smoke-test.py` — start the JAR, run `initialize` + `tools/list` via JSON-RPC, verify all 8 tools register (tests Main.kt + Engine.kt protocol layer; no Terraform or AWS needed)
+
+**Job 2 — `blueprint-validate` (runs after Job 1):**
+1. Download the fat JAR from Job 1
+2. Install Terraform + checkov
+3. For each of the 6 blueprints: `BlueprintVerifierKt` runs `generateWorkspace` + `validateWorkspace` (`terraform init` + `terraform validate` + checkov, no AWS calls)
+
+Catches: compile errors, unit test failures, broken tool registration, template syntax errors, checkov regressions.
+
+### integration-local.yml — LocalStack End-to-End
+
+Triggers on every push to `main` and every pull request, parallel with ci.yml.
+
+Starts **LocalStack Community** as a Docker service on port 4566, then runs `IntegrationVerifierKt` for the `ktor-dynamodb` blueprint:
+
+```
+generate → validate → plan → apply → detect_drift → audit → destroy
+```
+
+All resources in this blueprint (VPC, ALB, ECS, DynamoDB, KMS, IAM, CloudWatch) are supported by LocalStack Community (free). EKS, RDS, ElastiCache replication groups, and CloudFront OAC require LocalStack Pro and are only covered statically.
+
+Catches: regressions in the full tool flow that unit tests cannot detect (workspace wiring, providers.tf generation, Terraform state management, lock file integrity).
 
 ### blueprint-verify.yml — Weekly Verification
 
 Runs every Monday at 09:00 UTC. Can also be triggered manually via GitHub Actions → "Run workflow".
 
-Steps:
-1. Checkout, set up Java 21, install Terraform + checkov
-2. Build fat JAR
-3. For each blueprint JSON in `src/main/resources/blueprints/`: call `BlueprintVerifierKt`, which runs `generateWorkspace` + `validateWorkspace` (`terraform init` + `terraform validate` + checkov)
-4. On failure: open a GitHub issue with the failing blueprint and reproduction command
-5. On success: update `lastVerifiedDate` in all blueprint JSONs and push the change
+1. For each blueprint: `BlueprintVerifierKt` (`terraform validate` + checkov)
+2. On failure: opens a GitHub issue with reproduction command
+3. On success: updates `lastVerifiedDate` in all blueprint JSONs and pushes the commit
 
-**Important:** This workflow does NOT use LocalStack. `terraform validate` makes zero AWS API calls and is a purely static check.
+This is the authoritative weekly record. The `lastVerifiedDate` field in blueprint JSON is only updated here, not in the on-merge jobs.
 
 ---
 

@@ -10,10 +10,14 @@ permissions:
   contents: read
 
 jobs:
-  build:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Job 1: Build, unit tests, MCP smoke test
+  # No Terraform or AWS needed — runs in under 3 minutes.
+  # ─────────────────────────────────────────────────────────────────────────────
+  build-and-test:
     name: Build & Test
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 15
 
     steps:
       - name: Checkout repository
@@ -26,8 +30,77 @@ jobs:
           distribution: "temurin"
           cache: gradle
 
-      - name: Build and test
+      - name: Build and run unit tests
         run: ./gradlew build --no-daemon
 
       - name: Build fat JAR
         run: ./gradlew shadowJar --no-daemon
+
+      - name: Upload fat JAR
+        uses: actions/upload-artifact@v4
+        with:
+          name: gentepede-jar
+          path: build/libs/gentepede-mcp-all.jar
+          retention-days: 1
+
+      # Starts the JAR, sends initialize + tools/list via JSON-RPC, and verifies
+      # all 8 expected tools are registered. Tests Main.kt + Engine.kt protocol layer.
+      - name: MCP protocol smoke test
+        run: python3 .github/scripts/mcp-smoke-test.py
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Job 2: Blueprint generate + validate for all 6 blueprints
+  # Runs terraform validate + checkov. No AWS API calls — fully static analysis.
+  # Runs on every merge so CI catches template issues immediately, not a week later.
+  # ─────────────────────────────────────────────────────────────────────────────
+  blueprint-validate:
+    name: Blueprint Validate (all 6)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: build-and-test
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: "21"
+          distribution: "temurin"
+          cache: gradle
+
+      - name: Download fat JAR
+        uses: actions/download-artifact@v4
+        with:
+          name: gentepede-jar
+          path: build/libs/
+
+      - name: Install Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.8"
+
+      - name: Install checkov
+        run: pip install checkov
+
+      - name: Validate all blueprints
+        env:
+          GENTEPEDE_MODE: LOCAL
+        run: |
+          set -e
+          FAILED=""
+          for blueprint_file in src/main/resources/blueprints/*.json; do
+            id=$(python3 -c "import json; print(json.load(open('$blueprint_file'))['blueprintId'])")
+            echo "── Validating $id ──"
+            java -cp build/libs/gentepede-mcp-all.jar \
+              com.gentepede.ci.BlueprintVerifierKt \
+              --blueprint "$id" \
+              --project "ci-validate-${id}" \
+            && echo "PASS: $id" || { echo "FAIL: $id"; FAILED="$FAILED $id"; }
+          done
+          if [ -n "$FAILED" ]; then
+            echo "Blueprints that failed validation:$FAILED"
+            exit 1
+          fi
+          echo "All blueprints validated successfully"

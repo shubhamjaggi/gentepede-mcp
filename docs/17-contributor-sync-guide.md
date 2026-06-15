@@ -344,15 +344,29 @@ Run these three commands in order. All three must be green:
 # 2. Re-bundle templates and Helm chart into the JAR
 ./gradlew shadowJar
 
-# 3. Run the blueprint verifier against all blueprints
+# 3. MCP protocol smoke test — verifies all 8 tools register via JSON-RPC
+python3 .github/scripts/mcp-smoke-test.py
+
+# 4. Run the blueprint verifier against all blueprints (terraform validate + checkov)
 for id in springboot-postgres ktor-dynamodb nodejs-s3 fastapi-redis springboot-eks nodejs-eks; do
   echo "=== $id ==="
   GENTEPEDE_MODE=LOCAL java -cp build/libs/gentepede-mcp-all.jar \
     com.gentepede.ci.BlueprintVerifierKt --blueprint $id --project ci-test-$id
 done
+
+# 5. (Optional) Full end-to-end LocalStack integration test for ktor-dynamodb
+#    Requires Docker and LocalStack running at localhost:4566
+docker run -d -p 4566:4566 localstack/localstack:3
+GENTEPEDE_MODE=LOCAL AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test \
+  java -cp build/libs/gentepede-mcp-all.jar \
+  com.gentepede.ci.IntegrationVerifierKt \
+  --blueprint ktor-dynamodb --project ci-integ-test \
+  --var container_image=public.ecr.aws/docker/library/nginx:latest \
+  --var certificate_arn=arn:aws:acm:us-east-1:000000000000:certificate/test \
+  --var dynamodb_table_name=test-table
 ```
 
-If any step fails, resolve it before opening the PR. The CI workflow runs the same checks.
+If any step fails, resolve it before opening the PR. The CI workflow runs steps 1–5 automatically on every push.
 
 ---
 
