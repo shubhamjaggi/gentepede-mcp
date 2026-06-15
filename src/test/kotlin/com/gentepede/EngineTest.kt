@@ -30,7 +30,7 @@ class EngineTest {
     // ─────────────────────────────────────────────────────────────────────────
 
     private fun text(result: CallToolResult): String =
-        (result.content.first() as TextContent).text
+        (result.content.first() as TextContent).text!!
 
     // ─────────────────────────────────────────────────────────────────────────
     // list_available_blueprints

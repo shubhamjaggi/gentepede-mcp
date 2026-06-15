@@ -91,7 +91,7 @@ fun main(args: Array<String>) {
         currentStep = "destroy"
         println("\n=== Step 7: destroy ===")
         val destroy = svc.destroyWorkspace(projectName)
-        println("Destroy complete. Lock: ${destroy.lockFilePath}")
+        println("Destroy complete. Backup: ${destroy.stateBackupPath}")
 
         println("\n=== INTEGRATION TEST PASSED: $blueprintId ===")
         exitProcess(0)
