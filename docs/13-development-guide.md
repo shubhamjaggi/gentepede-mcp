@@ -45,9 +45,15 @@ gentepede-mcp/
 │       └── resource-quota.yaml
 ├── docs/                                ← All documentation
 ├── .github/
-│   └── workflows/
-│       ├── ci.yml                       ← Build + test on every push/PR
-│       └── blueprint-verify.yml         ← Weekly terraform validate + checkov on all blueprints
+│   ├── scripts/
+│   │   └── mcp-smoke-test.py            ← MCP JSON-RPC smoke test (run by ci.yml)
+│   ├── workflows/
+│   │   ├── ci.yml                       ← Build + test + smoke test + blueprint validate (every push/PR)
+│   │   ├── integration-local.yml        ← Full LocalStack end-to-end for ktor-dynamodb (every push/PR)
+│   │   └── blueprint-verify.yml         ← Weekly terraform validate + checkov + lastVerifiedDate update
+│   ├── ISSUE_TEMPLATE/
+│   ├── PULL_REQUEST_TEMPLATE.md
+│   └── dependabot.yml                   ← Automated Gradle + Actions dependency updates
 ├── build.gradle.kts
 └── gradlew
 ```
@@ -255,27 +261,30 @@ The source Helm chart is in `helm-chart/`. After editing:
 
 ## CI Workflows
 
-Three workflows run against every push and pull request; one runs on a weekly schedule.
+Four workflows protect the codebase. For a full plain-English explanation of each, see `docs/18-github-actions-guide.md`.
 
 ### ci.yml — Build, Test, Smoke Test, Blueprint Validate
 
-Triggers on every push to `main` and every pull request. Two parallel jobs:
+Triggers on every push to `main` and every pull request. Two sequential jobs:
 
 **Job 1 — `build-and-test`:**
-1. `./gradlew build` — compile + unit tests (InfrastructureServiceTest, ValidatorTest)
-2. `./gradlew shadowJar` — build fat JAR
-3. `python3 .github/scripts/mcp-smoke-test.py` — start the JAR, run `initialize` + `tools/list` via JSON-RPC, verify all 8 tools register (tests Main.kt + Engine.kt protocol layer; no Terraform or AWS needed)
+1. `./gradlew build` — compile + unit tests (InfrastructureServiceTest, ValidatorTest, EngineTest). JaCoCo generates a coverage report as a test finalizer.
+2. Upload coverage report artifact (HTML + XML, retained 7 days; open via "Artifacts" on the run page).
+3. `./gradlew shadowJar` — build fat JAR.
+4. Upload fat JAR artifact for Job 2 to download.
+5. `python3 .github/scripts/mcp-smoke-test.py` — start the JAR, run `initialize` + `tools/list` via JSON-RPC, verify all 8 tools register (tests Main.kt + Engine.kt protocol layer; no Terraform or AWS needed).
+6. `lychee --offline` — check all internal file links in every `*.md` file; catches broken cross-references between doc files.
 
 **Job 2 — `blueprint-validate` (runs after Job 1):**
-1. Download the fat JAR from Job 1
-2. Install Terraform + checkov
-3. For each of the 6 blueprints: `BlueprintVerifierKt` runs `generateWorkspace` + `validateWorkspace` (`terraform init` + `terraform validate` + checkov, no AWS calls)
+1. Download the fat JAR from Job 1.
+2. Install Terraform + checkov.
+3. For each of the 6 blueprints: `BlueprintVerifierKt` runs `generateWorkspace` + `validateWorkspace` (`terraform init` + `terraform validate` + checkov, no AWS calls).
 
-Catches: compile errors, unit test failures, broken tool registration, template syntax errors, checkov regressions.
+Catches: compile errors, unit test failures, broken tool registration, template syntax errors, checkov regressions, broken internal doc links.
 
 ### integration-local.yml — LocalStack End-to-End
 
-Triggers on every push to `main` and every pull request, parallel with ci.yml.
+Triggers on every push to `main` and every pull request, **in parallel** with ci.yml.
 
 Starts **LocalStack Community** as a Docker service on port 4566, then runs `IntegrationVerifierKt` for the `ktor-dynamodb` blueprint:
 
@@ -283,7 +292,7 @@ Starts **LocalStack Community** as a Docker service on port 4566, then runs `Int
 generate → validate → plan → apply → detect_drift → audit → destroy
 ```
 
-All resources in this blueprint (VPC, ALB, ECS, DynamoDB, KMS, IAM, CloudWatch) are supported by LocalStack Community (free). EKS, RDS, ElastiCache replication groups, and CloudFront OAC require LocalStack Pro and are only covered statically.
+All resources in this blueprint (VPC, ALB, ECS, DynamoDB, KMS, IAM, CloudWatch) are supported by LocalStack Community (free). EKS, RDS, ElastiCache replication groups, and CloudFront OAC require LocalStack Pro and are only covered statically by the blueprint-validate job.
 
 Catches: regressions in the full tool flow that unit tests cannot detect (workspace wiring, providers.tf generation, Terraform state management, lock file integrity).
 
@@ -291,11 +300,11 @@ Catches: regressions in the full tool flow that unit tests cannot detect (worksp
 
 Runs every Monday at 09:00 UTC. Can also be triggered manually via GitHub Actions → "Run workflow".
 
-1. For each blueprint: `BlueprintVerifierKt` (`terraform validate` + checkov)
-2. On failure: opens a GitHub issue with reproduction command
-3. On success: updates `lastVerifiedDate` in all blueprint JSONs and pushes the commit
+1. For each blueprint: `BlueprintVerifierKt` (`terraform validate` + checkov).
+2. On failure: opens a GitHub issue with reproduction command.
+3. On success: updates `lastVerifiedDate` in all blueprint JSONs and pushes the commit.
 
-This is the authoritative weekly record. The `lastVerifiedDate` field in blueprint JSON is only updated here, not in the on-merge jobs.
+The `lastVerifiedDate` field in blueprint JSON is only updated by this weekly job, not by the on-merge jobs. This makes the timestamp meaningful: it records when the last scheduled verification ran against the pinned provider version, not when code last changed.
 
 ---
 

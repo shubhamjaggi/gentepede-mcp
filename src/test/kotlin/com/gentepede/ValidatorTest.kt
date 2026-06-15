@@ -247,6 +247,142 @@ class ValidatorTest {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // parseCheckovJsonFindings — error tolerance
+    // ─────────────────────────────────────────────────────────────────────────
+
+    @Test
+    fun `parseCheckovJsonFindings returns empty list for malformed JSON`() {
+        @Suppress("UNCHECKED_CAST")
+        val result = parseCheckovJsonFindingsReflective("{ not valid json at all }") as List<*>
+        assertTrue(result.isEmpty(), "Malformed JSON must return an empty findings list (never throw)")
+    }
+
+    @Test
+    fun `parseCheckovJsonFindings returns empty list for blank input`() {
+        @Suppress("UNCHECKED_CAST")
+        val result = parseCheckovJsonFindingsReflective("") as List<*>
+        assertTrue(result.isEmpty(), "Blank input must return empty findings list")
+    }
+
+    @Test
+    fun `parseCheckovJsonFindings parses multiple findings from one run`() {
+        val checkovJson = """
+        [{
+          "results": {
+            "failed_checks": [
+              {"check_id": "CKV_AWS_1", "resource": "r1", "severity": "HIGH", "check": {"name": "High check"}, "guideline": "fix1"},
+              {"check_id": "CKV_AWS_2", "resource": "r2", "severity": "MEDIUM", "check": {"name": "Medium check"}, "guideline": "fix2"},
+              {"check_id": "CKV_AWS_3", "resource": "r3", "severity": "LOW", "check": {"name": "Low check"}, "guideline": "fix3"}
+            ]
+          }
+        }]
+        """.trimIndent()
+
+        @Suppress("UNCHECKED_CAST")
+        val result = parseCheckovJsonFindingsReflective(checkovJson) as List<SecurityFinding>
+        assertEquals(3, result.size, "Should parse all 3 findings")
+        assertEquals("HIGH", result[0].severity)
+        assertEquals("MEDIUM", result[1].severity)
+        assertEquals("LOW", result[2].severity)
+    }
+
+    @Test
+    fun `parseCheckovJsonFindings handles single-object output (not array)`() {
+        // checkov sometimes outputs a single object instead of an array
+        val checkovJson = """
+        {
+          "results": {
+            "failed_checks": [
+              {"check_id": "CKV_AWS_X", "resource": "r", "severity": "HIGH", "check": {"name": "Test"}, "guideline": ""}
+            ]
+          }
+        }
+        """.trimIndent()
+
+        @Suppress("UNCHECKED_CAST")
+        val result = parseCheckovJsonFindingsReflective(checkovJson) as List<SecurityFinding>
+        assertEquals(1, result.size, "Should handle single-object checkov output")
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // parseKubeScoreLine
+    // ─────────────────────────────────────────────────────────────────────────
+
+    @Test
+    fun `parseKubeScoreLine returns null for blank lines`() {
+        val method = Validator::class.java.getDeclaredMethod("parseKubeScoreLine", String::class.java)
+        method.isAccessible = true
+        assertNull(method.invoke(Validator, "   "), "Blank line must return null")
+        assertNull(method.invoke(Validator, ""), "Empty string must return null")
+    }
+
+    @Test
+    fun `parseKubeScoreLine returns null for OK lines`() {
+        val method = Validator::class.java.getDeclaredMethod("parseKubeScoreLine", String::class.java)
+        method.isAccessible = true
+        val result = method.invoke(Validator, "v1/Pod nginx · Container Security Context [OK] Context configured")
+        assertNull(result, "OK lines are not findings and must return null")
+    }
+
+    @Test
+    fun `parseKubeScoreLine returns finding for CRITICAL lines`() {
+        val method = Validator::class.java.getDeclaredMethod("parseKubeScoreLine", String::class.java)
+        method.isAccessible = true
+        val line = "v1/Pod nginx · Container Security Context [CRITICAL] Container has no security context"
+        val result = method.invoke(Validator, line) as KubeAuditFinding
+        assertNotNull(result, "CRITICAL line must return a finding")
+        assertTrue(result.comment.isNotBlank(), "Finding comment must not be blank")
+    }
+
+    @Test
+    fun `parseKubeScoreLine returns finding for WARNING lines`() {
+        val method = Validator::class.java.getDeclaredMethod("parseKubeScoreLine", String::class.java)
+        method.isAccessible = true
+        val line = " · Pod Probes [WARNING] Container is missing a readinessProbe"
+        val result = method.invoke(Validator, line) as KubeAuditFinding
+        assertNotNull(result, "WARNING line must return a finding")
+    }
+
+    @Test
+    fun `parseKubeScoreLine CRITICAL finding check text is truncated to 80 chars`() {
+        val method = Validator::class.java.getDeclaredMethod("parseKubeScoreLine", String::class.java)
+        method.isAccessible = true
+        val longDescription = "A".repeat(200)
+        val line = "v1/Pod nginx · Check [CRITICAL] $longDescription"
+        val result = method.invoke(Validator, line) as KubeAuditFinding
+        assertTrue(result.check.length <= 80, "check field must be capped at 80 characters")
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // kindClusterExists
+    // ─────────────────────────────────────────────────────────────────────────
+
+    @Test
+    fun `kindClusterExists returns false when kind is not in PATH`() {
+        if (!Validator.isCommandAvailable("kind")) {
+            assertFalse(Validator.kindClusterExists(),
+                "kindClusterExists must return false when 'kind' is not installed")
+        }
+        // If kind is installed, we skip this assertion (cannot control what clusters exist in CI)
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // isCommandAvailable — edge cases
+    // ─────────────────────────────────────────────────────────────────────────
+
+    @Test
+    fun `isCommandAvailable returns false for empty string`() {
+        val available = Validator.isCommandAvailable("")
+        assertFalse(available, "Empty string must not match any command")
+    }
+
+    @Test
+    fun `isCommandAvailable returns false for path-traversal string`() {
+        val available = Validator.isCommandAvailable("../../etc/passwd")
+        assertFalse(available, "Path-traversal strings must not be found as valid commands")
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     // Reflective helpers (access package-private parsing methods)
     // ─────────────────────────────────────────────────────────────────────────
 
@@ -257,5 +393,12 @@ class ValidatorTest {
         )
         method.isAccessible = true
         return method.invoke(Validator, jsonOutput, abortOnHighCritical) as CheckovResult
+    }
+
+    /** Calls the private parseCheckovJsonFindings method via reflection. */
+    private fun parseCheckovJsonFindingsReflective(jsonOutput: String): Any? {
+        val method = Validator::class.java.getDeclaredMethod("parseCheckovJsonFindings", String::class.java)
+        method.isAccessible = true
+        return method.invoke(Validator, jsonOutput)
     }
 }

@@ -6,6 +6,7 @@ plugins {
     kotlin("plugin.serialization") version "2.1.0"
     id("com.gradleup.shadow") version "8.3.6"
     application
+    jacoco
 }
 
 group = "com.gentepede"
@@ -52,6 +53,15 @@ tasks.processResources {
 
 tasks.test {
     useJUnitPlatform()
+    finalizedBy(tasks.jacocoTestReport)
+}
+
+tasks.jacocoTestReport {
+    dependsOn(tasks.test)
+    reports {
+        xml.required.set(true)
+        html.required.set(true)
+    }
 }
 
 tasks.named<ShadowJar>("shadowJar") {

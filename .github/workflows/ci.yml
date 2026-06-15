@@ -33,6 +33,15 @@ jobs:
       - name: Build and run unit tests
         run: ./gradlew build --no-daemon
 
+      # JaCoCo generates XML + HTML coverage reports as a finalizer of the test task.
+      # The XML report is needed by the upload step; HTML is for human browsing.
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: build/reports/jacoco/test/
+          retention-days: 7
+
       - name: Build fat JAR
         run: ./gradlew shadowJar --no-daemon
 
@@ -47,6 +56,20 @@ jobs:
       # all 8 expected tools are registered. Tests Main.kt + Engine.kt protocol layer.
       - name: MCP protocol smoke test
         run: python3 .github/scripts/mcp-smoke-test.py
+
+      # Check that all internal file links in Markdown docs resolve to real files.
+      # Uses --offline to skip external URL checks (avoids rate-limit flakiness in CI).
+      # This catches broken cross-references between doc files as the repo evolves.
+      - name: Check internal markdown links
+        uses: lycheeverse/lychee-action@v2
+        with:
+          args: >-
+            --offline
+            --no-progress
+            --exclude-path .gradle
+            --exclude-path build
+            '**/*.md'
+          fail: true
 
   # ─────────────────────────────────────────────────────────────────────────────
   # Job 2: Blueprint generate + validate for all 6 blueprints

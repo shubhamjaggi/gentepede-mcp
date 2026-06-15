@@ -311,6 +311,406 @@ class InfrastructureServiceTest {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // Workspace generation — file structure
+    // ─────────────────────────────────────────────────────────────────────────
+
+    @Test
+    fun `generateWorkspace TERRAFORM_ONLY creates flat file structure`() {
+        val projectName = "gen-test-flat-${System.nanoTime()}"
+        val home = System.getProperty("user.home")
+        val workspaceDir = Paths.get(home, ".gentepede", "workspaces", projectName)
+        try {
+            val result = svc.generateWorkspace("springboot-postgres", projectName, emptyMap())
+            assertEquals(workspaceDir.toString(), result.workspacePath)
+            assertEquals(OutputType.TERRAFORM_ONLY, result.outputType)
+            // Terraform files must be at workspace root (not in a subdirectory)
+            assertTrue(workspaceDir.resolve("main.tf").toFile().exists(), "main.tf must exist at workspace root")
+            assertTrue(workspaceDir.resolve("variables.tf").toFile().exists(), "variables.tf must exist at workspace root")
+            assertTrue(workspaceDir.resolve("terraform.tfvars").toFile().exists(), "terraform.tfvars must exist")
+            assertTrue(workspaceDir.resolve("providers.tf").toFile().exists(), "providers.tf must exist")
+            // TERRAFORM_ONLY must NOT create a terraform/ subdirectory
+            assertFalse(workspaceDir.resolve("terraform").toFile().exists(),
+                "TERRAFORM_ONLY workspace must not have a terraform/ subdirectory")
+        } finally {
+            workspaceDir.toFile().deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `generateWorkspace TERRAFORM_K8S creates terraform and helm subdirectories`() {
+        val projectName = "gen-test-k8s-${System.nanoTime()}"
+        val home = System.getProperty("user.home")
+        val workspaceDir = Paths.get(home, ".gentepede", "workspaces", projectName)
+        try {
+            val result = svc.generateWorkspace("springboot-eks", projectName, emptyMap())
+            assertEquals(workspaceDir.toString(), result.workspacePath)
+            assertEquals(OutputType.TERRAFORM_K8S, result.outputType)
+            // Terraform files must be in terraform/ subdirectory
+            assertTrue(workspaceDir.resolve("terraform/main.tf").toFile().exists(), "terraform/main.tf must exist")
+            assertTrue(workspaceDir.resolve("terraform/variables.tf").toFile().exists())
+            assertTrue(workspaceDir.resolve("terraform/terraform.tfvars").toFile().exists())
+            assertTrue(workspaceDir.resolve("terraform/providers.tf").toFile().exists())
+            // Helm chart must be in helm/ subdirectory
+            assertTrue(workspaceDir.resolve("helm/Chart.yaml").toFile().exists(), "helm/Chart.yaml must exist")
+            assertTrue(workspaceDir.resolve("helm/values.yaml").toFile().exists(), "helm/values.yaml must exist")
+            // kind-config.yaml in workspace root
+            assertTrue(workspaceDir.resolve("kind-config.yaml").toFile().exists(), "kind-config.yaml must exist at workspace root")
+        } finally {
+            workspaceDir.toFile().deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `generateWorkspace returns list of aws resource types from blueprint`() {
+        val projectName = "gen-test-resources-${System.nanoTime()}"
+        val home = System.getProperty("user.home")
+        val workspaceDir = Paths.get(home, ".gentepede", "workspaces", projectName)
+        try {
+            val result = svc.generateWorkspace("ktor-dynamodb", projectName, emptyMap())
+            assertTrue(result.awsResources.contains("DYNAMODB_TABLE"), "ktor-dynamodb must list DYNAMODB_TABLE")
+            assertTrue(result.awsResources.contains("ECS_FARGATE"), "ktor-dynamodb must list ECS_FARGATE")
+            assertTrue(result.awsResources.contains("VPC"), "ktor-dynamodb must list VPC")
+        } finally {
+            workspaceDir.toFile().deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `generateWorkspace unknown blueprint throws IllegalArgumentException`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            svc.generateWorkspace("nonexistent-blueprint-xyz", "test-proj", emptyMap())
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // resolveTerraformDir
+    // ─────────────────────────────────────────────────────────────────────────
+
+    @Test
+    fun `resolveTerraformDir returns workspace root when no terraform subdir exists`() {
+        val method = InfrastructureService::class.java.getDeclaredMethod("resolveTerraformDir", Path::class.java)
+        method.isAccessible = true
+        val result = method.invoke(svc, tempDir) as Path
+        assertEquals(tempDir, result, "TERRAFORM_ONLY: should return workspace root when terraform/ does not exist")
+    }
+
+    @Test
+    fun `resolveTerraformDir returns terraform subdir when it exists`() {
+        val terraformSubdir = tempDir.resolve("terraform")
+        Files.createDirectories(terraformSubdir)
+        val method = InfrastructureService::class.java.getDeclaredMethod("resolveTerraformDir", Path::class.java)
+        method.isAccessible = true
+        val result = method.invoke(svc, tempDir) as Path
+        assertEquals(terraformSubdir, result, "TERRAFORM_K8S: should return terraform/ subdir")
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // buildKindConfig
+    // ─────────────────────────────────────────────────────────────────────────
+
+    @Test
+    fun `buildKindConfig contains cluster name and port mappings`() {
+        val method = InfrastructureService::class.java.getDeclaredMethod("buildKindConfig", String::class.java)
+        method.isAccessible = true
+        val config = method.invoke(svc, "my-project") as String
+        assertTrue(config.contains("name: gentepede-local"), "Kind config must set cluster name to gentepede-local")
+        assertTrue(config.contains("containerPort: 80"), "Kind config must map port 80")
+        assertTrue(config.contains("containerPort: 443"), "Kind config must map port 443")
+        assertTrue(config.contains("hostPort: 8080"), "Kind config must expose host port 8080")
+        assertTrue(config.contains("role: control-plane"), "Kind config must declare a control-plane node")
+        assertTrue(config.contains("role: worker"), "Kind config must declare worker nodes")
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // sha256Hex
+    // ─────────────────────────────────────────────────────────────────────────
+
+    @Test
+    fun `sha256Hex matches known digest for hello`() {
+        val method = InfrastructureService::class.java.getDeclaredMethod("sha256Hex", ByteArray::class.java)
+        method.isAccessible = true
+        val result = method.invoke(svc, "hello".toByteArray()) as String
+        // SHA-256("hello") is well-known and stable across JVM implementations
+        assertEquals("2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824", result)
+    }
+
+    @Test
+    fun `sha256Hex is deterministic for the same input`() {
+        val method = InfrastructureService::class.java.getDeclaredMethod("sha256Hex", ByteArray::class.java)
+        method.isAccessible = true
+        val bytes = "determinism-test".toByteArray()
+        val hash1 = method.invoke(svc, bytes) as String
+        val hash2 = method.invoke(svc, bytes) as String
+        assertEquals(hash1, hash2, "Same input must always produce the same SHA-256 digest")
+    }
+
+    @Test
+    fun `sha256Hex produces different digests for different inputs`() {
+        val method = InfrastructureService::class.java.getDeclaredMethod("sha256Hex", ByteArray::class.java)
+        method.isAccessible = true
+        val hash1 = method.invoke(svc, "input-a".toByteArray()) as String
+        val hash2 = method.invoke(svc, "input-b".toByteArray()) as String
+        assertNotEquals(hash1, hash2, "Different inputs must produce different digests")
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // parsePlanChanges
+    // ─────────────────────────────────────────────────────────────────────────
+
+    @Test
+    fun `parsePlanChanges counts creates modifies and destroys excluding no-op`() {
+        val method = InfrastructureService::class.java.getDeclaredMethod("parsePlanChanges", JsonObject::class.java)
+        method.isAccessible = true
+
+        val planJson = buildJsonObject {
+            put("resource_changes", buildJsonArray {
+                add(buildJsonObject {
+                    put("address", "aws_vpc.main")
+                    put("change", buildJsonObject { put("actions", buildJsonArray { add("create") }) })
+                })
+                add(buildJsonObject {
+                    put("address", "aws_instance.app")
+                    put("change", buildJsonObject { put("actions", buildJsonArray { add("update") }) })
+                })
+                add(buildJsonObject {
+                    put("address", "aws_security_group.old")
+                    put("change", buildJsonObject { put("actions", buildJsonArray { add("delete") }) })
+                })
+                add(buildJsonObject {
+                    put("address", "data.aws_ami.ubuntu")
+                    put("change", buildJsonObject { put("actions", buildJsonArray { add("no-op") }) })
+                })
+            })
+        }
+
+        val result = method.invoke(svc, planJson)!!
+        val cls = result.javaClass
+        val toCreate = cls.getDeclaredField("toCreate").also { it.isAccessible = true }.getInt(result)
+        val toModify = cls.getDeclaredField("toModify").also { it.isAccessible = true }.getInt(result)
+        val toDestroy = cls.getDeclaredField("toDestroy").also { it.isAccessible = true }.getInt(result)
+        @Suppress("UNCHECKED_CAST")
+        val resources = cls.getDeclaredField("resources").also { it.isAccessible = true }.get(result) as List<*>
+
+        assertEquals(1, toCreate, "Should count exactly 1 CREATE")
+        assertEquals(1, toModify, "Should count exactly 1 MODIFY")
+        assertEquals(1, toDestroy, "Should count exactly 1 DESTROY")
+        assertEquals(3, resources.size, "no-op resources must be excluded from the list")
+    }
+
+    @Test
+    fun `parsePlanChanges returns zeroes for empty resource_changes`() {
+        val method = InfrastructureService::class.java.getDeclaredMethod("parsePlanChanges", JsonObject::class.java)
+        method.isAccessible = true
+        val planJson = buildJsonObject { put("resource_changes", buildJsonArray {}) }
+
+        val result = method.invoke(svc, planJson)!!
+        val cls = result.javaClass
+        val toCreate = cls.getDeclaredField("toCreate").also { it.isAccessible = true }.getInt(result)
+        assertEquals(0, toCreate, "Empty plan should have 0 creates")
+    }
+
+    @Test
+    fun `parsePlanChanges returns zeroes when resource_changes key is absent`() {
+        val method = InfrastructureService::class.java.getDeclaredMethod("parsePlanChanges", JsonObject::class.java)
+        method.isAccessible = true
+        val planJson = buildJsonObject {}
+
+        val result = method.invoke(svc, planJson)!!
+        val cls = result.javaClass
+        val toCreate = cls.getDeclaredField("toCreate").also { it.isAccessible = true }.getInt(result)
+        assertEquals(0, toCreate, "Missing resource_changes key should be handled gracefully")
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // parseDriftChanges
+    // ─────────────────────────────────────────────────────────────────────────
+
+    @Test
+    fun `parseDriftChanges identifies modified and destroyed resources`() {
+        val method = InfrastructureService::class.java.getDeclaredMethod("parseDriftChanges", JsonObject::class.java)
+        method.isAccessible = true
+
+        val planJson = buildJsonObject {
+            put("resource_changes", buildJsonArray {
+                add(buildJsonObject {
+                    put("address", "aws_security_group.app")
+                    put("change", buildJsonObject { put("actions", buildJsonArray { add("update") }) })
+                })
+                add(buildJsonObject {
+                    put("address", "aws_eip.nat")
+                    put("change", buildJsonObject { put("actions", buildJsonArray { add("delete") }) })
+                })
+                add(buildJsonObject {
+                    put("address", "data.aws_caller_identity.current")
+                    put("change", buildJsonObject { put("actions", buildJsonArray { add("no-op") }) })
+                })
+            })
+        }
+
+        @Suppress("UNCHECKED_CAST")
+        val result = method.invoke(svc, planJson) as List<DriftItem>
+        assertEquals(2, result.size, "no-op items must be excluded from drift list")
+        assertTrue(result.any { it.address == "aws_security_group.app" && it.change == "MODIFIED" })
+        assertTrue(result.any { it.address == "aws_eip.nat" && it.change == "DESTROY" })
+    }
+
+    @Test
+    fun `parseDriftChanges returns empty list for no-op only plan`() {
+        val method = InfrastructureService::class.java.getDeclaredMethod("parseDriftChanges", JsonObject::class.java)
+        method.isAccessible = true
+
+        val planJson = buildJsonObject {
+            put("resource_changes", buildJsonArray {
+                add(buildJsonObject {
+                    put("address", "data.aws_ami.ubuntu")
+                    put("change", buildJsonObject { put("actions", buildJsonArray { add("no-op") }) })
+                })
+            })
+        }
+
+        @Suppress("UNCHECKED_CAST")
+        val result = method.invoke(svc, planJson) as List<DriftItem>
+        assertTrue(result.isEmpty(), "All no-op plan should produce empty drift list")
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // buildValidationSummary
+    // ─────────────────────────────────────────────────────────────────────────
+
+    @Test
+    fun `buildValidationSummary shows PASSED for all green inputs`() {
+        val method = InfrastructureService::class.java.getDeclaredMethod(
+            "buildValidationSummary",
+            ProcessResult::class.java,
+            CheckovResult::class.java,
+            KubeScoreResult::class.java
+        )
+        method.isAccessible = true
+
+        val validateResult = ProcessResult(exitCode = 0, stdout = "Success!", stderr = "")
+        val checkovResult = CheckovResult(passed = true, skipped = false, findings = emptyList())
+        val kubeScoreResult = KubeScoreResult(passed = true, skipped = true, findings = emptyList())
+
+        val summary = method.invoke(svc, validateResult, checkovResult, kubeScoreResult) as String
+        assertTrue(summary.contains("PASSED"), "Summary must say PASSED when all checks succeed")
+        assertFalse(summary.contains("FAILED"), "Summary must not say FAILED when all checks pass")
+    }
+
+    @Test
+    fun `buildValidationSummary shows FAILED when terraform validate fails`() {
+        val method = InfrastructureService::class.java.getDeclaredMethod(
+            "buildValidationSummary",
+            ProcessResult::class.java,
+            CheckovResult::class.java,
+            KubeScoreResult::class.java
+        )
+        method.isAccessible = true
+
+        val validateResult = ProcessResult(exitCode = 1, stdout = "", stderr = "Error in config")
+        val checkovResult = CheckovResult(passed = true, skipped = false, findings = emptyList())
+        val kubeScoreResult = KubeScoreResult(passed = true, skipped = true, findings = emptyList())
+
+        val summary = method.invoke(svc, validateResult, checkovResult, kubeScoreResult) as String
+        assertTrue(summary.contains("FAILED"), "Summary must say FAILED when terraform validate exits non-zero")
+    }
+
+    @Test
+    fun `buildValidationSummary shows SKIPPED when checkov is not installed`() {
+        val method = InfrastructureService::class.java.getDeclaredMethod(
+            "buildValidationSummary",
+            ProcessResult::class.java,
+            CheckovResult::class.java,
+            KubeScoreResult::class.java
+        )
+        method.isAccessible = true
+
+        val validateResult = ProcessResult(exitCode = 0, stdout = "Success!", stderr = "")
+        val checkovResult = CheckovResult(passed = true, skipped = true, findings = emptyList())
+        val kubeScoreResult = KubeScoreResult(passed = true, skipped = true, findings = emptyList())
+
+        val summary = method.invoke(svc, validateResult, checkovResult, kubeScoreResult) as String
+        assertTrue(summary.contains("SKIPPED"), "Summary must say SKIPPED when checkov is not installed")
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Lock file read/write round-trip
+    // ─────────────────────────────────────────────────────────────────────────
+
+    @Test
+    fun `writeLockFile and readLockFile preserve all fields`() {
+        val writeLock = InfrastructureService::class.java.getDeclaredMethod("writeLockFile", Path::class.java, GentepedeLock::class.java)
+        writeLock.isAccessible = true
+        val readLock = InfrastructureService::class.java.getDeclaredMethod("readLockFile", Path::class.java)
+        readLock.isAccessible = true
+
+        val lock = GentepedeLock(
+            blueprintId = "ktor-dynamodb",
+            terraformProviderVersion = "5.82.0",
+            plannedAt = "2025-06-14T10:00:00Z",
+            planFileChecksum = "sha256:abc123def456",
+            lastApplied = null,
+            stateBackupPath = null
+        )
+        writeLock.invoke(svc, tempDir, lock)
+        val restored = readLock.invoke(svc, tempDir) as GentepedeLock
+
+        assertEquals(lock.blueprintId, restored.blueprintId)
+        assertEquals(lock.terraformProviderVersion, restored.terraformProviderVersion)
+        assertEquals(lock.plannedAt, restored.plannedAt)
+        assertEquals(lock.planFileChecksum, restored.planFileChecksum)
+        assertNull(restored.lastApplied)
+        assertNull(restored.stateBackupPath)
+    }
+
+    @Test
+    fun `readLockFile returns null when no lock file exists`() {
+        val readLock = InfrastructureService::class.java.getDeclaredMethod("readLockFile", Path::class.java)
+        readLock.isAccessible = true
+        val result = readLock.invoke(svc, tempDir)
+        assertNull(result, "readLockFile must return null when gentepede.lock.json does not exist")
+    }
+
+    @Test
+    fun `writeLockFile creates file in workspace root not terraform subdir`() {
+        val writeLock = InfrastructureService::class.java.getDeclaredMethod("writeLockFile", Path::class.java, GentepedeLock::class.java)
+        writeLock.isAccessible = true
+        val lock = GentepedeLock(blueprintId = "test", terraformProviderVersion = "5.82.0")
+        writeLock.invoke(svc, tempDir, lock)
+
+        val lockFile = tempDir.resolve("gentepede.lock.json").toFile()
+        assertTrue(lockFile.exists(), "Lock file must be in the workspace root")
+        assertTrue(lockFile.readText().contains("test"), "Lock file must contain the blueprintId")
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // resolveCurrentBlueprintId
+    // ─────────────────────────────────────────────────────────────────────────
+
+    @Test
+    fun `resolveCurrentBlueprintId reads from lock file when it exists`() {
+        val writeLock = InfrastructureService::class.java.getDeclaredMethod("writeLockFile", Path::class.java, GentepedeLock::class.java)
+        writeLock.isAccessible = true
+        val resolve = InfrastructureService::class.java.getDeclaredMethod("resolveCurrentBlueprintId", Path::class.java)
+        resolve.isAccessible = true
+
+        writeLock.invoke(svc, tempDir, GentepedeLock(blueprintId = "fastapi-redis", terraformProviderVersion = "5.82.0"))
+        val id = resolve.invoke(svc, tempDir) as String
+        assertEquals("fastapi-redis", id)
+    }
+
+    @Test
+    fun `resolveCurrentBlueprintId falls back to tfvars comment when no lock file`() {
+        val resolve = InfrastructureService::class.java.getDeclaredMethod("resolveCurrentBlueprintId", Path::class.java)
+        resolve.isAccessible = true
+
+        tempDir.resolve("terraform.tfvars").toFile().writeText(
+            "# Blueprint: nodejs-s3\nproject_name = \"test\"\n"
+        )
+        val id = resolve.invoke(svc, tempDir) as String
+        assertEquals("nodejs-s3", id)
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     // Helpers to call private methods via reflection for unit testing
     // ─────────────────────────────────────────────────────────────────────────
 

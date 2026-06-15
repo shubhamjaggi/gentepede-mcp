@@ -1,6 +1,7 @@
 # Gentepede MCP
 
 [![CI](https://github.com/shubhamjaggi/gentepede-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/shubhamjaggi/gentepede-mcp/actions/workflows/ci.yml)
+[![LocalStack Integration](https://github.com/shubhamjaggi/gentepede-mcp/actions/workflows/integration-local.yml/badge.svg)](https://github.com/shubhamjaggi/gentepede-mcp/actions/workflows/integration-local.yml)
 [![Blueprint Verification](https://github.com/shubhamjaggi/gentepede-mcp/actions/workflows/blueprint-verify.yml/badge.svg)](https://github.com/shubhamjaggi/gentepede-mcp/actions/workflows/blueprint-verify.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Java 21](https://img.shields.io/badge/Java-21-orange.svg)](https://adoptium.net/)
@@ -152,6 +153,7 @@ Gentepede embeds security best practices directly in every Terraform template an
 | [docs/15-blueprint-to-resource-map.md](docs/15-blueprint-to-resource-map.md) | Full mapping: which blueprint provisions which AWS services and why |
 | [docs/16-tool-architecture.md](docs/16-tool-architecture.md) | End-to-end architecture of all 8 tools: every layer, every CLI call, every file |
 | [docs/17-contributor-sync-guide.md](docs/17-contributor-sync-guide.md) | Complete sync checklist for every contributor change type (blueprint, template family, tool, Helm chart, provider bump) |
+| [docs/18-github-actions-guide.md](docs/18-github-actions-guide.md) | Plain-English explanation of every CI workflow: what it does, when it runs, and why |
 
 ---
 

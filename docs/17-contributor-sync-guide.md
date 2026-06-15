@@ -35,7 +35,7 @@ Every blueprint JSON file has these dependents:
 | `docs/04-blueprints-guide.md` "All Blueprints at a Glance" | One row per blueprint |
 | `docs/15-blueprint-to-resource-map.md` | Per-blueprint resource breakdown section |
 | `docs/00-glossary.md` | If any new AWS service is introduced that isn't already defined |
-| `InfrastructureServiceTest.kt` | Blueprint loading test + data-tier toggle test for the new ID |
+| `InfrastructureServiceTest.kt` | Blueprint loading test + data-tier toggle test + workspace generation test for the new ID |
 
 ### Template families (`templates/{family}/`)
 
@@ -187,7 +187,8 @@ Adding a new callable tool beyond the existing eight (`list_available_blueprints
 - [ ] `Engine.kt` — tool handler: extract params from `JsonObject`, call the InfrastructureService method, format the result as a human-readable string. No business logic here.
 - [ ] `InfrastructureService.kt` — business logic method; must not reference MCP types; must be testable in isolation
 - [ ] `Models.kt` — new result data class if the return shape is distinct from existing results
-- [ ] `InfrastructureServiceTest.kt` — tests for the new method (success path, error path, workspace-not-found guard)
+- [ ] `InfrastructureServiceTest.kt` — tests for the new InfrastructureService method (success path, error path, workspace-not-found guard)
+- [ ] `EngineTest.kt` — missing-parameter test and workspace-not-found test for the new Engine handler
 
 #### Documentation
 
@@ -366,7 +367,7 @@ GENTEPEDE_MODE=LOCAL AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test \
   --var dynamodb_table_name=test-table
 ```
 
-If any step fails, resolve it before opening the PR. The CI workflow runs steps 1–5 automatically on every push.
+If any step fails, resolve it before opening the PR. The CI workflows run steps 1–5 automatically on every push (see `docs/18-github-actions-guide.md` for a full description of each workflow).
 
 ---
 

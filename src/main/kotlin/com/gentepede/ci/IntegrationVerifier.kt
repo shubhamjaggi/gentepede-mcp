@@ -76,7 +76,7 @@ fun main(args: Array<String>) {
         currentStep = "detect_drift"
         println("\n=== Step 5: detect_drift ===")
         val drift = svc.detectDrift(projectName)
-        println("Drift: ${if (drift.hasDrift) "DRIFT DETECTED (${drift.terraformSummary})" else "no drift"}")
+        println("Drift: ${if (drift.hasDrift) "DRIFT DETECTED (${drift.terraformDrift.size} resource(s) changed)" else "no drift"}")
         // In LocalStack, LocalStack is ephemeral so drift right after apply is unexpected.
         // We warn but do not fail — LocalStack occasionally returns stale state.
         if (drift.hasDrift) println("  NOTE: drift in LocalStack is usually a timing artifact")

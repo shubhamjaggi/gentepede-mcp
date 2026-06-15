@@ -1,0 +1,25 @@
+version: 2
+
+updates:
+  # Keep Gradle dependencies (MCP SDK, kotlinx, coroutines, JUnit) up to date.
+  # Dependabot opens one PR per outdated dependency, capped at 5 open PRs at a time.
+  - package-ecosystem: "gradle"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    labels:
+      - "dependencies"
+    open-pull-requests-limit: 5
+
+  # Keep GitHub Actions versions (actions/checkout, setup-java, etc.) up to date.
+  # Uses SHA pinning for third-party actions; Dependabot auto-updates those SHAs.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    labels:
+      - "dependencies"
+      - "github-actions"
+    open-pull-requests-limit: 5
