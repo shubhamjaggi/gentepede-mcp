@@ -55,7 +55,7 @@ class InfrastructureServiceTest {
     @Test
     fun `loadBlueprint returns null for unknown blueprint`() {
         val bp = svc.loadBlueprint("nonexistent-blueprint")
-        assertNull(bp)
+        Assertions.assertNull(bp)
     }
 
     @Test

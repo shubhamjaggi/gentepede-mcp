@@ -330,7 +330,7 @@ class ValidatorTest {
         method.isAccessible = true
         val line = "v1/Pod nginx · Container Security Context [CRITICAL] Container has no security context"
         val result = method.invoke(Validator, line) as KubeAuditFinding
-        assertNotNull(result, "CRITICAL line must return a finding")
+        Assertions.assertNotNull(result, "CRITICAL line must return a finding")
         assertTrue(result.comment.isNotBlank(), "Finding comment must not be blank")
     }
 
@@ -340,7 +340,7 @@ class ValidatorTest {
         method.isAccessible = true
         val line = " · Pod Probes [WARNING] Container is missing a readinessProbe"
         val result = method.invoke(Validator, line) as KubeAuditFinding
-        assertNotNull(result, "WARNING line must return a finding")
+        Assertions.assertNotNull(result, "WARNING line must return a finding")
     }
 
     @Test

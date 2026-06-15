@@ -16,13 +16,13 @@ updates:
       # Unpin once shadow plugin releases Gradle 9 support.
       - dependency-name: "gradle"
         update-types: ["version-update:semver-major"]
-      # JUnit 5.14+ adds Kotlin contract extensions that conflict with our Assertions.*
-      # star-import, causing assertNull/assertNotNull overload resolution ambiguity.
-      # JUnit 6 has additional breaking API changes. Revisit when upgrading Kotlin test setup.
+      # JUnit 6 has breaking API changes; block major-version bumps only.
+      # Tests use explicit Assertions.assertNotNull/assertNull to avoid Kotlin contract
+      # extension overload ambiguity that affected 5.13.x and 5.14.x with star-imports.
       - dependency-name: "org.junit.jupiter:junit-jupiter"
-        versions: [">=5.14.0"]
+        update-types: ["version-update:semver-major"]
       - dependency-name: "org.junit.jupiter:junit-jupiter-params"
-        versions: [">=5.14.0"]
+        update-types: ["version-update:semver-major"]
       # kotlinx-serialization 1.8+ requires Kotlin 2.3+; project is on Kotlin 2.1.
       # Bump serialization and Kotlin together when upgrading Kotlin.
       - dependency-name: "org.jetbrains.kotlinx:kotlinx-serialization-json"
