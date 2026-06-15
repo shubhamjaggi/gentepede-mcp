@@ -2,8 +2,8 @@ import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 
 
 plugins {
-    kotlin("jvm") version "2.1.0"
-    kotlin("plugin.serialization") version "2.1.0"
+    kotlin("jvm") version "2.4.0"
+    kotlin("plugin.serialization") version "2.4.0"
     id("com.gradleup.shadow") version "8.3.6"
     application
     jacoco
@@ -21,7 +21,7 @@ dependencies {
     implementation("io.modelcontextprotocol:kotlin-sdk:0.4.0")
 
     // JSON serialization — used for blueprint parsing and lock file I/O
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.0")
 
     // Coroutines — MCP SDK requires coroutine scope for tool handler registration
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0")
