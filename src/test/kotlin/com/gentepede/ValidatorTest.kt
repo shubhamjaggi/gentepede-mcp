@@ -1,4 +1,4 @@
-package com.gentepede
+﻿package com.gentepede
 
 import org.junit.jupiter.api.*
 import org.junit.jupiter.api.Assertions.*
@@ -221,7 +221,7 @@ class ValidatorTest {
         // The validate path in InfrastructureService reads directly from code:
         // No call to Validator.getCallerIdentity() appears in validateWorkspace().
         val svcSource = InfrastructureService::class.java.getDeclaredMethod("validateWorkspace", String::class.java)
-        assertNotNull(svcSource, "validateWorkspace method must exist")
+        Assertions.assertNotNull(svcSource, "validateWorkspace method must exist")
         // The method signature is sufficient to confirm it exists — no aws sts is called
         // because Validator.getCallerIdentity() only appears in plan/apply/drift/destroy paths.
     }
@@ -312,8 +312,8 @@ class ValidatorTest {
     fun `parseKubeScoreLine returns null for blank lines`() {
         val method = Validator::class.java.getDeclaredMethod("parseKubeScoreLine", String::class.java)
         method.isAccessible = true
-        assertNull(method.invoke(Validator, "   "), "Blank line must return null")
-        assertNull(method.invoke(Validator, ""), "Empty string must return null")
+        Assertions.assertNull(method.invoke(Validator, "   "), "Blank line must return null")
+        Assertions.assertNull(method.invoke(Validator, ""), "Empty string must return null")
     }
 
     @Test
@@ -321,7 +321,7 @@ class ValidatorTest {
         val method = Validator::class.java.getDeclaredMethod("parseKubeScoreLine", String::class.java)
         method.isAccessible = true
         val result = method.invoke(Validator, "v1/Pod nginx · Container Security Context [OK] Context configured")
-        assertNull(result, "OK lines are not findings and must return null")
+        Assertions.assertNull(result, "OK lines are not findings and must return null")
     }
 
     @Test

@@ -1,4 +1,4 @@
-package com.gentepede
+﻿package com.gentepede
 
 import kotlinx.serialization.json.*
 import org.junit.jupiter.api.*
@@ -42,12 +42,12 @@ class InfrastructureServiceTest {
     @Test
     fun `loadBlueprint returns correct fields for springboot-postgres`() {
         val bp = svc.loadBlueprint("springboot-postgres")
-        assertNotNull(bp, "Blueprint should exist")
+        Assertions.assertNotNull(bp, "Blueprint should exist")
         assertEquals("springboot-postgres", bp!!.blueprintId)
         assertEquals(OutputType.TERRAFORM_ONLY, bp.outputType)
         assertEquals(TemplateFamily.ecs, bp.templateFamily)
-        assertNotNull(bp.terraformProviderVersion, "terraformProviderVersion must be present")
-        assertNotNull(bp.lastVerifiedDate, "lastVerifiedDate must be present")
+        Assertions.assertNotNull(bp.terraformProviderVersion, "terraformProviderVersion must be present")
+        Assertions.assertNotNull(bp.lastVerifiedDate, "lastVerifiedDate must be present")
         assertTrue(bp.terraformProviderVersion.matches(Regex("\\d+\\.\\d+\\.\\d+")),
             "Provider version must be in X.Y.Z format")
     }
@@ -61,9 +61,9 @@ class InfrastructureServiceTest {
     @Test
     fun `all blueprints have required fields`() {
         for (bp in svc.listBlueprints()) {
-            assertNotNull(bp.blueprintId, "${bp.blueprintId}: blueprintId missing")
-            assertNotNull(bp.outputType, "${bp.blueprintId}: outputType missing")
-            assertNotNull(bp.templateFamily, "${bp.blueprintId}: templateFamily missing")
+            Assertions.assertNotNull(bp.blueprintId, "${bp.blueprintId}: blueprintId missing")
+            Assertions.assertNotNull(bp.outputType, "${bp.blueprintId}: outputType missing")
+            Assertions.assertNotNull(bp.templateFamily, "${bp.blueprintId}: templateFamily missing")
             assertTrue(bp.terraformProviderVersion.isNotBlank(), "${bp.blueprintId}: provider version blank")
             assertTrue(bp.lastVerifiedDate.matches(Regex("\\d{4}-\\d{2}")),
                 "${bp.blueprintId}: lastVerifiedDate must be YYYY-MM format")
@@ -224,7 +224,7 @@ class InfrastructureServiceTest {
         assertEquals(lock.blueprintId, decoded.blueprintId)
         assertEquals(lock.planFileChecksum, decoded.planFileChecksum)
         assertEquals(lock.plannedAt, decoded.plannedAt)
-        assertNull(decoded.lastApplied, "lastApplied should be null at plan time")
+        Assertions.assertNull(decoded.lastApplied, "lastApplied should be null at plan time")
     }
 
     @Test
@@ -658,8 +658,8 @@ class InfrastructureServiceTest {
         assertEquals(lock.terraformProviderVersion, restored.terraformProviderVersion)
         assertEquals(lock.plannedAt, restored.plannedAt)
         assertEquals(lock.planFileChecksum, restored.planFileChecksum)
-        assertNull(restored.lastApplied)
-        assertNull(restored.stateBackupPath)
+        Assertions.assertNull(restored.lastApplied)
+        Assertions.assertNull(restored.stateBackupPath)
     }
 
     @Test
@@ -667,7 +667,7 @@ class InfrastructureServiceTest {
         val readLock = InfrastructureService::class.java.getDeclaredMethod("readLockFile", Path::class.java)
         readLock.isAccessible = true
         val result = readLock.invoke(svc, tempDir)
-        assertNull(result, "readLockFile must return null when gentepede.lock.json does not exist")
+        Assertions.assertNull(result, "readLockFile must return null when gentepede.lock.json does not exist")
     }
 
     @Test
