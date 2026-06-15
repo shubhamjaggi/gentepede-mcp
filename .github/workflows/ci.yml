@@ -36,7 +36,7 @@ jobs:
       # JaCoCo generates XML + HTML coverage reports as a finalizer of the test task.
       # The XML report is needed by the upload step; HTML is for human browsing.
       - name: Upload coverage report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-report
           path: build/reports/jacoco/test/
@@ -46,7 +46,7 @@ jobs:
         run: ./gradlew shadowJar --no-daemon
 
       - name: Upload fat JAR
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: gentepede-jar
           path: build/libs/gentepede-mcp-all.jar
