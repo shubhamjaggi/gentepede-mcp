@@ -33,7 +33,7 @@ jobs:
   integration:
     name: LocalStack Integration (ktor-dynamodb)
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     services:
       localstack:

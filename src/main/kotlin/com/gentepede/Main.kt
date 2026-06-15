@@ -3,6 +3,10 @@ package com.gentepede
 import io.modelcontextprotocol.kotlin.sdk.*
 import io.modelcontextprotocol.kotlin.sdk.server.*
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.io.asSink
 import kotlinx.io.asSource
@@ -244,10 +248,24 @@ fun main() = runBlocking {
     val done = CompletableDeferred<Unit>()
     server.onClose { done.complete(Unit) }
 
+    val bufferedOut = System.out.asSink().buffered()
     val transport = StdioServerTransport(
         System.`in`.asSource().buffered(),
-        System.out.asSink().buffered()
+        bufferedOut
     )
+
+    // StdioServerTransport wraps our Sink in a second RealBufferedSink internally
+    // and calls flush() after every send(). That flush propagates through our
+    // bufferedOut layer to System.out, so an extra periodic flusher is needed to
+    // cover any writes the SDK may produce outside of send() (e.g. keepalives).
+    val flusher = launch(Dispatchers.IO) {
+        while (isActive) {
+            delay(10)
+            runCatching { bufferedOut.flush() }
+        }
+    }
+
     server.connect(transport)
     done.await()
+    flusher.cancel()
 }
