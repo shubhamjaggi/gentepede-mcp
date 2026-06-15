@@ -19,7 +19,7 @@
 #
 #   Step 1 — Blueprint JSON declares awsResources:
 #               springboot-eks → includes "RDS_POSTGRES"
-#               nodejs-eks     → does not include "RDS_POSTGRES"; includes "S3", "CLOUDFRONT"
+#               nodejs-eks     → does not include "RDS_POSTGRES"; includes "S3_BUCKET", "CLOUDFRONT"
 #
 #   Step 2 — InfrastructureService.injectDataTierToggles() for the eks family:
 #               enable_rds = ("RDS_POSTGRES" in awsResources)

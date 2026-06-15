@@ -1025,6 +1025,9 @@ resource "aws_ecs_task_definition" "app" {
       # malware or exfiltrate credentials via local files.
       readonlyRootFilesystem = true
 
+      # SPRING_PROFILES_ACTIVE is used by Spring Boot to select the active profile
+      # (e.g. "dev" or "prod"). Non-Spring frameworks (Ktor, FastAPI) will simply
+      # ignore this env var — it has no effect on them.
       environment = [
         { name = "SPRING_PROFILES_ACTIVE", value = var.environment },
         { name = "AWS_REGION", value = data.aws_region.current.name }
@@ -1046,6 +1049,12 @@ resource "aws_ecs_service" "app" {
   task_definition = aws_ecs_task_definition.app.arn
   desired_count   = var.desired_count
   launch_type     = "FARGATE"
+
+  # Zero-downtime rolling deploy: start new tasks before stopping old ones.
+  # minimum_healthy_percent=100 ensures capacity never drops below desired_count.
+  # maximum_percent=200 allows temporarily running 2x desired_count during rollout.
+  deployment_minimum_healthy_percent = 100
+  deployment_maximum_percent         = 200
 
   network_configuration {
     subnets          = aws_subnet.private[*].id

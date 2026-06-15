@@ -41,6 +41,11 @@
         "node_type": "cache.t3.micro",
         "num_cache_nodes": 1
       }
+    },
+    {
+      "type": "KMS",
+      "required": true,
+      "defaultConfig": {}
     }
   ],
   "variables": [

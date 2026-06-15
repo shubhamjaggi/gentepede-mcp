@@ -74,7 +74,7 @@ provider "aws" {
 **Why doesn't Gentepede auto-create the kind cluster?** InfrastructureService checks for the cluster with `kind get clusters` and aborts with instructions if `gentepede-local` is not found. This is intentional:
 1. A kind cluster is not automatically torn down between Gentepede invocations — it persists across sessions.
 2. Auto-creating it would hide the cluster lifecycle from the user, making it harder to manage.
-3. Keeping Engine.kt simple is a design goal.
+3. It separates the one-time cluster setup from the repeatable generate → validate → apply workflow.
 
 **Creating the cluster:**
 ```bash

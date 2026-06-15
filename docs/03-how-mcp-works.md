@@ -97,7 +97,7 @@ The entire round trip (excluding Terraform subprocess time) takes milliseconds.
 
 ## How Tool Errors Appear
 
-If `validate_infrastructure_package` finds a checkov CRITICAL violation, Engine.kt returns:
+If `validate_infrastructure_package` finds a checkov HIGH or CRITICAL violation, Engine.kt returns:
 ```kotlin
 CallToolResult(content = listOf(TextContent(text = "Error: ...")), isError = true)
 ```

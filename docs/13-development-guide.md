@@ -22,7 +22,8 @@ gentepede-mcp/
 │   │       └── blueprints/              ← Blueprint JSON files (one per blueprint ID)
 │   └── test/
 │       └── kotlin/com/gentepede/
-│           └── InfrastructureServiceTest.kt
+│           ├── InfrastructureServiceTest.kt
+│           └── ValidatorTest.kt
 ├── templates/
 │   ├── ecs/                             ← Terraform files for ECS-family blueprints
 │   │   ├── main.tf
@@ -99,6 +100,7 @@ The `archiveVersion.set("")` setting strips the version from the filename so the
 
 # Run a specific test class
 ./gradlew test --tests 'com.gentepede.InfrastructureServiceTest'
+./gradlew test --tests 'com.gentepede.ValidatorTest'
 
 # Run a single test method
 ./gradlew test --tests 'com.gentepede.InfrastructureServiceTest.springboot-postgres sets enable_rds to true'
@@ -118,6 +120,16 @@ Test reports (HTML): `build/reports/tests/test/index.html`
 - **tfvars content** — variables are merged correctly; `buildTfvarsContent` produces valid HCL
 - **Data-tier toggles** — `enable_rds`, `enable_dynamodb`, `enable_redis` are set correctly per blueprint
 - **Kind pre-flight** — `preflightKindClusterIfLocalK8s` throws `IllegalStateException` with the expected message when the kind cluster is missing and `GENTEPEDE_MODE=LOCAL`
+
+`ValidatorTest` tests output parsing and CLI availability logic in isolation — no external tools need to be installed:
+
+- **checkov severity thresholds** — HIGH/CRITICAL sets `passed=false` in validate mode; LOW/MEDIUM does not
+- **checkov audit mode** — `abortOnHighCritical=false` always returns `passed=true` even for HIGH findings, but findings still appear in the report
+- **kube-score output parsing** — `[CRITICAL]` lines are detected; `[OK]`/`[SKIPPED]` only means a passing result
+- **plan file checksum** — same content produces identical checksums; different content produces different checksums; missing plan file pre-condition is confirmed
+- **`isCommandAvailable`** — returns `false` for non-existent binaries; returns `true` for `java`
+- **validate has no credential pre-flight** — confirms `validateWorkspace` does not call `aws sts get-caller-identity`
+- **credential error wrapping** — `ProcessExecutionException` carries the original AWS error message
 
 ---
 

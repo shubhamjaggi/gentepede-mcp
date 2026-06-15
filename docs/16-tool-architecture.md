@@ -108,10 +108,10 @@ That's the whole loop. Now let's go layer by layer.
 │  Generates all config files. Runs external CLI tools (terraform, helm). │
 │  Reads and writes the lock file. Creates state backups.                 │
 └────────────────────────────┬────────────────────────────────────────────┘
-                             │ Delegates CLI output interpretation
+                             │ Delegates CLI output parsing + kube-score orchestration
                              ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
-│  LAYER 5 — Validator.kt (CLI Output Interpreter)                        │
+│  LAYER 5 — Validator.kt (CLI Output Parser)                             │
 │  Parses checkov's JSON security findings.                               │
 │  Pipes Helm output to kube-score and parses the results.                │
 │  Parses infracost's cost estimate JSON.                                 │
@@ -280,9 +280,9 @@ Every LOCAL vs PRODUCTION branch in the code traces back to this one line.
 
 ---
 
-## Layer 5 — Validator.kt: CLI Output Interpreter
+## Layer 5 — Validator.kt: CLI Output Parser and Orchestrator
 
-Validator.kt knows how to read the output that external tools produce. InfrastructureService knows how to *run* tools; Validator knows how to *understand* their output.
+Validator.kt both runs certain external tools and parses their output. Most process execution goes through `InfrastructureService.runProcess`; the exception is kube-score, which Validator runs directly via its own `ProcessBuilder` because piping `helm template` output to kube-score's stdin requires managing two processes simultaneously — something `runProcess` cannot do.
 
 | What it does | How |
 |---|---|

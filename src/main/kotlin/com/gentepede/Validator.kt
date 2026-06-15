@@ -14,8 +14,8 @@ import java.io.OutputStream
  * - AWS credential pre-flight (`aws sts get-caller-identity`)
  * - `helm diff upgrade` output (graceful skip if helm-diff plugin not installed)
  *
- * Does NOT run processes itself — it uses [InfrastructureService.runProcess] via the
- * static helpers here (or direct ProcessBuilder for piped commands).
+ * Runs kube-score directly via its own ProcessBuilder (piped stdin requires bypassing
+ * [InfrastructureService.runProcess]). All other external calls go through [svc.runProcess].
  *
  * Every binary absence is handled with a graceful skip and informational message
  * rather than a hard failure.

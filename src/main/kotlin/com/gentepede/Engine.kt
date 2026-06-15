@@ -234,7 +234,7 @@ class Engine(private val svc: InfrastructureService = InfrastructureService()) {
                 sb.appendLine("Rendered Kubernetes Manifests (Helm):")
                 sb.appendLine("-".repeat(60))
                 sb.appendLine(manifests.take(4000)) // cap manifest output length
-                if (manifests.length > 4000) sb.appendLine("... (truncated — view full output at ${result.lockFilePath})")
+                if (manifests.length > 4000) sb.appendLine("... (truncated — run `helm template <project> helm/` in the workspace directory to view the full output)")
             }
 
             sb.appendLine()

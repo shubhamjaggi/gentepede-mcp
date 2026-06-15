@@ -215,6 +215,22 @@ Verify: `aws sts get-caller-identity`
 
 ---
 
+## kube-score hangs or times out during validate
+
+**Behaviour:** `validate_infrastructure_package` on a `TERRAFORM_K8S` blueprint stalls for 5 minutes, then fails with a timeout error from kube-score.
+
+**Root cause:** kube-score is started with a 5-minute hard timeout. If the Helm-rendered YAML is unusually large or the system is under heavy load, kube-score can exceed this limit.
+
+**Fix:**
+- Ensure `helm` and `kube-score` are up to date
+- If the timeout is consistent, run kube-score manually to see the raw output:
+  ```bash
+  helm template my-project helm/ -f helm/values.yaml | kube-score score -
+  ```
+- If the cluster cannot be reached, check that `kubectl` is configured and `kind get clusters` shows `gentepede-local`
+
+---
+
 ## checkov HIGH/CRITICAL abort
 
 **Error:**

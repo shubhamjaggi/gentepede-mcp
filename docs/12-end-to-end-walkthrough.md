@@ -209,7 +209,7 @@ checkov: PASSED
 **Response:**
 ```
 Will CREATE 14 resources
-Cost Estimate: $73.12/USD per month (estimated)
+Cost Estimate: $73.12/USD per month (estimated) (estimated)
 [CREATE] aws_kms_key.main
 [CREATE] aws_vpc.main
 ...

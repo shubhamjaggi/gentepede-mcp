@@ -6,12 +6,12 @@
 |---|---|---|---|---|---|
 | `springboot-postgres` | Spring Boot | ecs | TERRAFORM_ONLY | RDS PostgreSQL | `container_image`, `certificate_arn` |
 | `ktor-dynamodb` | Ktor | ecs | TERRAFORM_ONLY | DynamoDB | `container_image`, `certificate_arn` |
-| `nodejs-s3` | Node.js | lambda | TERRAFORM_ONLY | S3 + CloudFront | `lambda_zip_path` |
+| `nodejs-s3` | Node.js | lambda | TERRAFORM_ONLY | S3 + CloudFront | `lambda_zip_path`, `s3_bucket_name` |
 | `fastapi-redis` | FastAPI | ecs | TERRAFORM_ONLY | ElastiCache Redis | `container_image`, `certificate_arn` |
-| `springboot-eks` | Spring Boot | eks | TERRAFORM_K8S | RDS PostgreSQL | `container_image`, `certificate_arn` |
-| `nodejs-eks` | Node.js | eks | TERRAFORM_K8S | S3 + CloudFront | `container_image`, `s3_bucket_name` |
+| `springboot-eks` | Spring Boot | eks | TERRAFORM_K8S | RDS PostgreSQL | `container_image`, `image_tag`, `certificate_arn` |
+| `nodejs-eks` | Node.js | eks | TERRAFORM_K8S | S3 + CloudFront | `container_image`, `image_tag`, `s3_bucket_name`, `certificate_arn` |
 
-All six blueprints provision VPC, KMS, and VPC flow logs. `TERRAFORM_K8S` blueprints also generate a Helm chart in `helm/` and a `kind-config.yaml` for local cluster creation.
+ECS and EKS blueprints provision VPC, KMS, and VPC flow logs. The `nodejs-s3` (Lambda family) blueprint provisions Lambda, API Gateway, S3, CloudFront, and KMS — it has no VPC (serverless, no persistent network). `TERRAFORM_K8S` blueprints also generate a Helm chart in `helm/` and a `kind-config.yaml` for local cluster creation.
 
 **How does Gentepede know which services to create for each blueprint?** See [docs/15-blueprint-to-resource-map.md](15-blueprint-to-resource-map.md) for the complete derivation chain (blueprint JSON → InfrastructureService → terraform.tfvars → `count = var.enable_X ? 1 : 0`) and a full per-blueprint resource breakdown.
 
@@ -272,15 +272,15 @@ Declarative list of AWS services this blueprint provisions. This array has two p
 
 | Type String | AWS Resource | Template Families That Support It |
 |---|---|---|
-| `VPC` | VPC with public/private subnets, NAT Gateway, IGW | ecs, eks, lambda |
+| `VPC` | VPC with public/private subnets, NAT Gateway, IGW | ecs, eks |
 | `ALB` | Application Load Balancer with HTTPS listener + 80→443 redirect | ecs, eks |
 | `ECS_FARGATE` | ECS cluster, task definition, and Fargate service | ecs |
 | `RDS_POSTGRES` | RDS PostgreSQL instance (private subnet, encrypted) | ecs, eks |
 | `DYNAMODB_TABLE` | DynamoDB table (PAY_PER_REQUEST billing, KMS encryption) | ecs |
 | `ELASTICACHE_REDIS` | ElastiCache Redis replication group (encrypted at rest + in transit) | ecs |
 | `KMS` | Customer-managed KMS key for all encryption in the blueprint | ecs, eks, lambda |
-| `EKS` | EKS cluster + managed node group + IAM roles | eks |
-| `S3` | S3 bucket (versioned, private, KMS-encrypted) | eks, lambda |
+| `EKS_CLUSTER` | EKS cluster + managed node group + IAM roles | eks |
+| `S3_BUCKET` | S3 bucket (versioned, private, KMS-encrypted) | eks, lambda |
 | `CLOUDFRONT` | CloudFront distribution (HTTPS-only, TLS 1.2+) | eks, lambda |
 | `LAMBDA` | Lambda function + CloudWatch log group + execution role | lambda |
 | `API_GATEWAY` | API Gateway HTTP API v2 + Lambda integration + stage | lambda |
@@ -350,7 +350,7 @@ Documents the security guarantees enforced by this blueprint's template family. 
 
 | Field | Where it is actually enforced in the Terraform template |
 |---|---|
-| `enableVpcFlowLogs: true` | `aws_flow_log` resource in every template family, writing to an S3 bucket |
+| `enableVpcFlowLogs: true` | `aws_flow_log` resource in ECS and EKS template families, writing to an S3 bucket. The Lambda family has no VPC (serverless), so this field is a declaration of intent for VPC-based blueprints only. |
 | `enforceHttps: true` | `aws_lb_listener` port-80→443 redirect in ECS/EKS; `viewer_protocol_policy = "redirect-to-https"` in CloudFront (Lambda family) |
 
 Note: `enableWaf` is intentionally absent. WAF (Web Application Firewall) requires per-application rule tuning that cannot be automated safely — it is not templated by Gentepede.
@@ -375,5 +375,5 @@ The `securityBaseline` fields in the blueprint JSON are declarations, not code. 
 
 | securityBaseline field | Where it's enforced in Terraform |
 |---|---|
-| `enableVpcFlowLogs: true` | `aws_flow_log` resource in every template family |
-| `enforceHttps: true` | `aws_lb_listener` port-80→443 redirect; `viewer_protocol_policy = "redirect-to-https"` in CloudFront |
+| `enableVpcFlowLogs: true` | `aws_flow_log` resource in ECS and EKS families (Lambda has no VPC) |
+| `enforceHttps: true` | `aws_lb_listener` port-80→443 redirect in ECS/EKS; `viewer_protocol_policy = "redirect-to-https"` in CloudFront (Lambda family) |

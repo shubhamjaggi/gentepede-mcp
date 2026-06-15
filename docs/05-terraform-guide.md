@@ -217,7 +217,7 @@ resource "aws_elasticache_replication_group" "redis" {
 
   at_rest_encryption_enabled = true    # Encrypts data written to disk
   transit_encryption_enabled = true    # Encrypts the Redis wire protocol (TLS)
-  auth_token                 = null    # No password (rely on VPC + SG isolation instead)
+  # No auth_token — VPC + security group isolation is the primary access control
   # ...
 }
 ```

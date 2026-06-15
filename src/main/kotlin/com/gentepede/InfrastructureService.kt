@@ -40,9 +40,9 @@ class InfrastructureService {
 
     private val mode: String = System.getenv("GENTEPEDE_MODE") ?: "LOCAL"
     private val homeDir: String = System.getProperty("user.home")
-    private val gentepedRoot = Paths.get(homeDir, ".gentepede")
-    private val workspacesRoot = gentepedRoot.resolve("workspaces")
-    private val backupsRoot = gentepedRoot.resolve("backups")
+    private val gentepedeRoot = Paths.get(homeDir, ".gentepede")
+    private val workspacesRoot = gentepedeRoot.resolve("workspaces")
+    private val backupsRoot = gentepedeRoot.resolve("backups")
 
     // ─────────────────────────────────────────────────────────────────────────
     // BLUEPRINT LOADING
