@@ -185,6 +185,39 @@ class InfrastructureServiceTest {
         assertFalse(content.contains("enable_redis"), "lambda family must not emit enable_redis")
     }
 
+    @Test
+    fun `ecs blueprint tfvars disable steady-state wait in LOCAL mode`() {
+        // LocalStack Community's ECS emulation never reports steady state, so terraform
+        // apply would hang forever waiting on it — LOCAL mode must opt out.
+        val modeField = InfrastructureService::class.java.getDeclaredField("mode")
+        modeField.isAccessible = true
+        val originalMode = modeField.get(svc) as String
+        modeField.set(svc, "LOCAL")
+        try {
+            val content = svc.buildTfvarsContent(svc.loadBlueprint("ktor-dynamodb")!!, emptyMap())
+            assertTrue(content.contains("ecs_wait_for_steady_state = false"),
+                "LOCAL mode must disable ECS steady-state wait")
+        } finally {
+            modeField.set(svc, originalMode)
+        }
+    }
+
+    @Test
+    fun `ecs blueprint tfvars omit steady-state override in PRODUCTION mode`() {
+        // PRODUCTION must keep the Terraform default (true) so a bad rollout fails apply.
+        val modeField = InfrastructureService::class.java.getDeclaredField("mode")
+        modeField.isAccessible = true
+        val originalMode = modeField.get(svc) as String
+        modeField.set(svc, "PRODUCTION")
+        try {
+            val content = svc.buildTfvarsContent(svc.loadBlueprint("ktor-dynamodb")!!, emptyMap())
+            assertFalse(content.contains("ecs_wait_for_steady_state"),
+                "PRODUCTION mode must not override the steady-state default")
+        } finally {
+            modeField.set(svc, originalMode)
+        }
+    }
+
     // ─────────────────────────────────────────────────────────────────────────
     // Helm values.yaml generation
     // ─────────────────────────────────────────────────────────────────────────
