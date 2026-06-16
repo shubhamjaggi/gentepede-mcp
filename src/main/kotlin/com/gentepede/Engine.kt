@@ -1,6 +1,6 @@
 package com.gentepede
 
-import io.modelcontextprotocol.kotlin.sdk.*
+import io.modelcontextprotocol.kotlin.sdk.types.*
 import kotlinx.serialization.json.*
 
 /**

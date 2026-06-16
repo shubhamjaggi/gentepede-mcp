@@ -28,7 +28,15 @@ import kotlinx.serialization.json.*
  * This file does NOT contain business logic. Any change to what a tool does
  * belongs in [Engine] or [InfrastructureService].
  */
-fun main() = runBlocking {
+fun main() {
+    // The MCP SDK's kotlin-logging dependency prints a startup banner straight to stdout on
+    // first use, which corrupts the NDJSON wire format (every stdout line must be a JSON-RPC
+    // message). Must be set before any SDK class touches KotlinLoggingConfiguration.
+    System.setProperty("kotlin-logging.logStartupMessage", "false")
+    runMcpServer()
+}
+
+private fun runMcpServer() = runBlocking {
     val engine = Engine()
 
     val server = Server(
@@ -50,7 +58,7 @@ fun main() = runBlocking {
                 "a complete AWS architecture (ECS/EKS/Lambda) with security best practices " +
                 "pre-configured. Use this first to choose a blueprint before calling " +
                 "generate_infrastructure_package.",
-        inputSchema = Tool.Input(
+        inputSchema = ToolSchema(
             properties = JsonObject(emptyMap()),
             required = emptyList()
         )
@@ -70,7 +78,7 @@ fun main() = runBlocking {
                 "Workspace is created at ~/.gentepede/workspaces/{project_name}/. " +
                 "In LOCAL mode, routes to LocalStack. In PRODUCTION mode, uses real AWS " +
                 "with an S3 remote state backend.",
-        inputSchema = Tool.Input(
+        inputSchema = ToolSchema(
             properties = buildJsonObject {
                 put("blueprint_name", buildJsonObject {
                     put("type", "string")
@@ -102,7 +110,7 @@ fun main() = runBlocking {
                 "and for EKS blueprints: kube-score (aborts on CRITICAL). " +
                 "Makes zero AWS API calls — no credentials required. " +
                 "Run this after generate_infrastructure_package and before planning.",
-        inputSchema = Tool.Input(
+        inputSchema = ToolSchema(
             properties = buildJsonObject {
                 put("project_name", buildJsonObject {
                     put("type", "string")
@@ -126,7 +134,7 @@ fun main() = runBlocking {
                 "first. Writes a plan file checksum to gentepede.lock.json for integrity checking " +
                 "at apply time. Also runs infracost for cost estimation (skipped if not installed). " +
                 "For EKS blueprints, renders Helm manifests for review alongside the Terraform plan.",
-        inputSchema = Tool.Input(
+        inputSchema = ToolSchema(
             properties = buildJsonObject {
                 put("project_name", buildJsonObject {
                     put("type", "string")
@@ -151,7 +159,7 @@ fun main() = runBlocking {
                 "Terraform completes. In PRODUCTION mode, verifies AWS credentials first. " +
                 "WARNING: this deploys real infrastructure. Run plan_infrastructure_package first " +
                 "and review the output carefully.",
-        inputSchema = Tool.Input(
+        inputSchema = ToolSchema(
             properties = buildJsonObject {
                 put("project_name", buildJsonObject {
                     put("type", "string")
@@ -176,7 +184,7 @@ fun main() = runBlocking {
                 "In PRODUCTION mode, verifies AWS credentials first. " +
                 "Note: meaningful primarily in PRODUCTION — LocalStack state is ephemeral and " +
                 "all resources appear as drift if Docker restarts.",
-        inputSchema = Tool.Input(
+        inputSchema = ToolSchema(
             properties = buildJsonObject {
                 put("project_name", buildJsonObject {
                     put("type", "string")
@@ -201,7 +209,7 @@ fun main() = runBlocking {
                 "Creates a state backup before destroying. " +
                 "Deletes the workspace directory but NEVER deletes backup files. " +
                 "WARNING: this destroys real infrastructure. This action cannot be undone.",
-        inputSchema = Tool.Input(
+        inputSchema = ToolSchema(
             properties = buildJsonObject {
                 put("project_name", buildJsonObject {
                     put("type", "string")
@@ -224,7 +232,7 @@ fun main() = runBlocking {
                 "this never aborts — it returns ALL findings (checkov + kube-score) grouped by " +
                 "severity (critical, high, medium, low) with remediation guidance. " +
                 "Use this to get a complete security posture report at any point in the workflow.",
-        inputSchema = Tool.Input(
+        inputSchema = ToolSchema(
             properties = buildJsonObject {
                 put("project_name", buildJsonObject {
                     put("type", "string")
@@ -242,13 +250,13 @@ fun main() = runBlocking {
     // ─────────────────────────────────────────────────────────────────────────
 
     val done = CompletableDeferred<Unit>()
-    server.onClose { done.complete(Unit) }
 
     val transport = StdioServerTransport(
         input = System.`in`.asSource().buffered(),
-        output = System.out.asSink(),
+        output = System.out.asSink().buffered(),
     )
 
-    server.connect(transport)
+    val session = server.createSession(transport)
+    session.onClose { done.complete(Unit) }
     done.await()
 }
