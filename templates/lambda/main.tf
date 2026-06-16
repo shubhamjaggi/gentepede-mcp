@@ -216,7 +216,7 @@ data "aws_iam_policy_document" "lambda_assume" {
 
 data "aws_iam_policy_document" "lambda_permissions" {
   statement {
-    sid = "CloudWatchLogs"
+    sid     = "CloudWatchLogs"
     actions = [
       "logs:CreateLogStream",
       "logs:PutLogEvents"
@@ -230,7 +230,7 @@ data "aws_iam_policy_document" "lambda_permissions" {
   statement {
     sid = "S3Access"
     # CKV_AWS_111: explicit S3 actions — no s3:* wildcard
-    actions = [
+    actions   = [
       "s3:GetObject",
       "s3:PutObject",
       "s3:DeleteObject",
@@ -243,8 +243,8 @@ data "aws_iam_policy_document" "lambda_permissions" {
   }
 
   statement {
-    sid     = "KMSDecrypt"
-    actions = ["kms:Decrypt", "kms:GenerateDataKey"]
+    sid       = "KMSDecrypt"
+    actions   = ["kms:Decrypt", "kms:GenerateDataKey"]
     resources = [aws_kms_key.main.arn]
   }
 }

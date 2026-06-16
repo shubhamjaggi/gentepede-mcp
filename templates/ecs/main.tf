@@ -1098,9 +1098,9 @@ resource "aws_ecs_service" "app" {
 # We pass only private subnets: the RDS instance gets no public IP and is
 # unreachable from the internet even if publicly_accessible = true were set.
 resource "aws_db_subnet_group" "main" {
-  count      = var.enable_rds ? 1 : 0
-  name       = "${var.project_name}-db-subnet-group"
-  subnet_ids = aws_subnet.private[*].id
+  count       = var.enable_rds ? 1 : 0
+  name        = "${var.project_name}-db-subnet-group"
+  subnet_ids  = aws_subnet.private[*].id
   description = "Private subnets for RDS - no public internet access"
 
   tags = {
@@ -1232,9 +1232,9 @@ resource "aws_dynamodb_table" "main" {
 # so Redis is never reachable from the internet — only from ECS tasks via the
 # Redis security group (port 6379 from ecs_tasks SG only).
 resource "aws_elasticache_subnet_group" "main" {
-  count      = var.enable_redis ? 1 : 0
-  name       = "${var.project_name}-redis-subnet-group"
-  subnet_ids = aws_subnet.private[*].id
+  count       = var.enable_redis ? 1 : 0
+  name        = "${var.project_name}-redis-subnet-group"
+  subnet_ids  = aws_subnet.private[*].id
   description = "Private subnets for ElastiCache Redis"
 
   tags = {

@@ -635,8 +635,8 @@ resource "aws_db_instance" "postgres" {
   allocated_storage       = var.db_allocated_storage
   max_allocated_storage   = var.db_allocated_storage * 5
 
-  db_name  = var.db_name
-  username = var.db_username
+  db_name                     = var.db_name
+  username                    = var.db_username
   manage_master_user_password = true
 
   db_subnet_group_name   = aws_db_subnet_group.main[0].name
