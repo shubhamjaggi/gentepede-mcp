@@ -50,16 +50,16 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
 
-      # Run tflint on each template family. .tflint.hcl at the repo root is discovered
-      # automatically because tflint walks parent directories from the --chdir path.
+      # Run tflint on each template family. --config resolves the root .tflint.hcl
+      # from the invocation directory before --chdir takes effect.
       - name: tflint — ecs
-        run: tflint --chdir=templates/ecs
+        run: tflint --chdir=templates/ecs --config="$(pwd)/.tflint.hcl"
 
       - name: tflint — lambda
-        run: tflint --chdir=templates/lambda
+        run: tflint --chdir=templates/lambda --config="$(pwd)/.tflint.hcl"
 
       - name: tflint — eks
-        run: tflint --chdir=templates/eks
+        run: tflint --chdir=templates/eks --config="$(pwd)/.tflint.hcl"
 
   # ─────────────────────────────────────────────────────────────────────────────
   # Job 2: Blueprint JSON schema validation
