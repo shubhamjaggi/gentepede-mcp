@@ -36,7 +36,12 @@ jobs:
       # Fails if any .tf file in templates/ is not correctly formatted.
       # Fix locally with: terraform fmt -recursive templates/
       - name: terraform fmt check
-        run: terraform fmt -check -recursive templates/
+        run: |
+          if ! terraform fmt -check -recursive templates/; then
+            echo "=== Files need reformatting. Diff of required changes ==="
+            terraform fmt -diff -recursive templates/
+            exit 1
+          fi
 
       - name: Set up tflint
         uses: terraform-linters/setup-tflint@v4
