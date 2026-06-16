@@ -76,8 +76,7 @@ private fun runMcpServer() = runBlocking {
                 "Creates Terraform files (main.tf, variables.tf, terraform.tfvars, providers.tf) " +
                 "and for EKS blueprints also a production-ready Helm chart. " +
                 "Workspace is created at ~/.gentepede/workspaces/{project_name}/. " +
-                "In LOCAL mode, routes to LocalStack. In PRODUCTION mode, uses real AWS " +
-                "with an S3 remote state backend.",
+                "Targets real AWS with an S3 remote state backend.",
         inputSchema = ToolSchema(
             properties = buildJsonObject {
                 put("blueprint_name", buildJsonObject {
@@ -106,7 +105,8 @@ private fun runMcpServer() = runBlocking {
     server.addTool(
         name = "validate_infrastructure_package",
         description = "Runs static analysis on an existing workspace. Executes: " +
-                "terraform init, terraform validate, checkov (aborts on HIGH/CRITICAL), " +
+                "terraform init -backend=false (skips S3 backend — no credentials needed), " +
+                "terraform validate, checkov (aborts on HIGH/CRITICAL), " +
                 "and for EKS blueprints: kube-score (aborts on CRITICAL). " +
                 "Makes zero AWS API calls — no credentials required. " +
                 "Run this after generate_infrastructure_package and before planning.",
@@ -130,8 +130,8 @@ private fun runMcpServer() = runBlocking {
     server.addTool(
         name = "plan_infrastructure_package",
         description = "Runs terraform plan and generates a human-readable summary of what will " +
-                "be created, modified, or destroyed. In PRODUCTION mode, verifies AWS credentials " +
-                "first. Writes a plan file checksum to gentepede.lock.json for integrity checking " +
+                "be created, modified, or destroyed. Verifies AWS credentials first. " +
+                "Writes a plan file checksum to gentepede.lock.json for integrity checking " +
                 "at apply time. Also runs infracost for cost estimation (skipped if not installed). " +
                 "For EKS blueprints, renders Helm manifests for review alongside the Terraform plan.",
         inputSchema = ToolSchema(
@@ -156,7 +156,7 @@ private fun runMcpServer() = runBlocking {
         description = "Applies the previously reviewed plan. Verifies the plan file checksum " +
                 "before applying to prevent stale plan application. Creates a timestamped state " +
                 "backup before applying. For EKS blueprints, runs helm upgrade --install after " +
-                "Terraform completes. In PRODUCTION mode, verifies AWS credentials first. " +
+                "Terraform completes. Verifies AWS credentials first. " +
                 "WARNING: this deploys real infrastructure. Run plan_infrastructure_package first " +
                 "and review the output carefully.",
         inputSchema = ToolSchema(
@@ -181,9 +181,7 @@ private fun runMcpServer() = runBlocking {
         description = "Detects drift between the Terraform state and actual AWS resources. " +
                 "Uses terraform plan -detailed-exitcode: exit 0 = no drift, exit 2 = drift detected. " +
                 "For EKS blueprints, also runs helm diff upgrade (requires helm-diff plugin). " +
-                "In PRODUCTION mode, verifies AWS credentials first. " +
-                "Note: meaningful primarily in PRODUCTION — LocalStack state is ephemeral and " +
-                "all resources appear as drift if Docker restarts.",
+                "Verifies AWS credentials first.",
         inputSchema = ToolSchema(
             properties = buildJsonObject {
                 put("project_name", buildJsonObject {
@@ -204,6 +202,7 @@ private fun runMcpServer() = runBlocking {
     server.addTool(
         name = "destroy_infrastructure_package",
         description = "Destroys all infrastructure in the workspace. " +
+                "Verifies AWS credentials first. " +
                 "For EKS blueprints: uninstalls the Helm release first and waits for pods to " +
                 "terminate before Terraform destroys the node group. " +
                 "Creates a state backup before destroying. " +

@@ -11,7 +11,7 @@
 | `springboot-eks` | Spring Boot | eks | TERRAFORM_K8S | RDS PostgreSQL | `container_image`, `image_tag`, `certificate_arn` |
 | `nodejs-eks` | Node.js | eks | TERRAFORM_K8S | S3 + CloudFront | `container_image`, `image_tag`, `s3_bucket_name`, `certificate_arn` |
 
-ECS and EKS blueprints provision VPC, KMS, and VPC flow logs. The `nodejs-s3` (Lambda family) blueprint provisions Lambda, API Gateway, S3, CloudFront, and KMS — it has no VPC (serverless, no persistent network). `TERRAFORM_K8S` blueprints also generate a Helm chart in `helm/` and a `kind-config.yaml` for local cluster creation.
+ECS and EKS blueprints provision VPC, KMS, and VPC flow logs. The `nodejs-s3` (Lambda family) blueprint provisions Lambda, API Gateway, S3, CloudFront, and KMS — it has no VPC (serverless, no persistent network). `TERRAFORM_K8S` blueprints also generate a Helm chart in `helm/`.
 
 **How does Gentepede know which services to create for each blueprint?** See [docs/15-blueprint-to-resource-map.md](15-blueprint-to-resource-map.md) for the complete derivation chain (blueprint JSON → InfrastructureService → terraform.tfvars → `count = var.enable_X ? 1 : 0`) and a full per-blueprint resource breakdown.
 
@@ -364,7 +364,6 @@ Note: `enableWaf` is intentionally absent. WAF (Web Application Firewall) requir
 | Workspace layout | Flat (`~/.gentepede/workspaces/{project}/`) | Subdirs: `terraform/` + `helm/` |
 | Containers | ECS Fargate (managed by AWS) | EKS (Kubernetes pods, managed by user) |
 | Helm chart | Not generated | Generated at `helm/` with per-project values.yaml |
-| kind-config.yaml | Not generated | Generated in workspace root |
 | kube-score | Not run | Run during validate and plan |
 | helm upgrade | Not run | Run during apply |
 | Blueprints | springboot-postgres, ktor-dynamodb, nodejs-s3, fastapi-redis | springboot-eks, nodejs-eks |

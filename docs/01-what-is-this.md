@@ -20,7 +20,7 @@ Gentepede MCP is a Model Context Protocol server that maps your application's te
 You tell Claude which blueprint fits your application (e.g. `springboot-postgres`) and provide a few variables (your Docker image URI, ACM certificate ARN, etc.). Gentepede generates:
 
 - A complete Terraform workspace with security best practices baked in from the start
-- A `providers.tf` tuned for either LocalStack (free, local) or real AWS (production)
+- A `providers.tf` targeting real AWS with an S3 remote state backend
 - For EKS blueprints: a production-ready Helm chart with hardened pod security contexts, NetworkPolicy, HPA, and ResourceQuota
 
 Then you run a five-step workflow: **list → generate → validate → plan → apply**.
@@ -45,7 +45,7 @@ generate_infrastructure_package
     certificate_arn: "arn:aws:acm:us-east-1:123456789012:certificate/abc"
     db_name: "appdb"
 ```
-Gentepede writes `~/.gentepede/workspaces/my-api/` with main.tf, variables.tf, terraform.tfvars, and providers.tf (pointing to LocalStack in LOCAL mode).
+Gentepede writes `~/.gentepede/workspaces/my-api/` with main.tf, variables.tf, terraform.tfvars, and providers.tf.
 
 **Step 3 — Validate**
 ```
@@ -66,7 +66,7 @@ Runs `terraform plan`, shows you exactly what will be created (VPC, ALB, ECS clu
 apply_infrastructure_package
   project_name: "my-api"
 ```
-Applies the exact plan you reviewed. Takes a state backup first. In PRODUCTION mode, confirms your AWS identity before touching any resource.
+Applies the exact plan you reviewed. Takes a state backup first. Confirms your AWS identity before touching any resource.
 
 **Ongoing — Drift detection**
 ```

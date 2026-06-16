@@ -14,8 +14,7 @@ A clear and concise description of what the bug is.
 
 1. Blueprint used (e.g. `springboot-postgres`):
 2. Tool called (e.g. `validate_infrastructure_package`):
-3. `GENTEPEDE_MODE` (`LOCAL` / `PRODUCTION`):
-4. Exact command / request and arguments:
+3. Exact command / request and arguments:
 
 ## Expected Behavior
 
@@ -35,7 +34,7 @@ sections from any `ProcessExecutionException`.
 - OS:
 - Java version (`java -version`):
 - Gentepede MCP version / commit:
-- Relevant CLI versions (terraform, checkov, helm, kind, kube-score, infracost):
+- Relevant CLI versions (terraform, checkov, helm, kube-score, infracost):
 
 ## Additional Context
 

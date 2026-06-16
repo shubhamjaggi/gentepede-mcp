@@ -11,7 +11,7 @@ generate_infrastructure_package
 validate_infrastructure_package   ← static analysis, no AWS calls
         │
         ▼
-plan_infrastructure_package       ← hits AWS (or LocalStack)
+plan_infrastructure_package       ← hits real AWS
         │
         ▼  (review the plan output)
         │
@@ -81,7 +81,6 @@ Infrastructure Package Generated
 ============================================================
 Project:        my-api
 Blueprint:      springboot-postgres
-Mode:           LOCAL
 Output Type:    TERRAFORM_ONLY
 Workspace:      /Users/you/.gentepede/workspaces/my-api
 
@@ -112,7 +111,7 @@ Run plan_infrastructure_package first to review what will change.
 **When to use:** After generate, before plan. Pure static analysis — no AWS credentials needed.
 
 **What it runs:**
-1. `terraform init -no-color` (idempotent)
+1. `terraform init -backend=false -no-color` (idempotent; skips S3 backend init so no credentials needed)
 2. `terraform validate -no-color`
 3. `checkov -d . -o json --compact` (aborts on HIGH/CRITICAL)
 4. `helm template | kube-score score -` (TERRAFORM_K8S only; aborts on CRITICAL)
@@ -153,10 +152,10 @@ Checkov Findings:
 
 ## Tool 4: `plan_infrastructure_package`
 
-**When to use:** After successful validate. Contacts AWS (or LocalStack).
+**When to use:** After successful validate. Contacts real AWS.
 
 **What it runs:**
-1. PRODUCTION: `aws sts get-caller-identity` (pre-flight)
+1. `aws sts get-caller-identity` (credential pre-flight)
 2. `terraform init -no-color`
 3. `terraform plan -out=gentepede.tfplan -no-color`
 4. `terraform show -json gentepede.tfplan` → writes `gentepede-plan.json`
@@ -198,14 +197,12 @@ Next Step: Review the plan above, then run apply_infrastructure_package.
 **When to use:** After reviewing the plan output. WARNING: deploys real infrastructure.
 
 **What it does:**
-1. PRODUCTION: credential pre-flight
+1. Credential pre-flight (`aws sts get-caller-identity`)
 2. Verify `gentepede.tfplan` SHA-256 matches `gentepede.lock.json`
 3. Backup `terraform.tfstate` to `~/.gentepede/backups/{project}/{timestamp}.tfstate`
 4. `terraform apply gentepede.tfplan -no-color`
-5. TERRAFORM_K8S: `helm upgrade --install ...`
+5. TERRAFORM_K8S: `helm upgrade --install ...` (targets current `~/.kube/config` context)
 6. Update `gentepede.lock.json` with `lastApplied` + `stateBackupPath`
-
-**EKS LOCAL note:** for a TERRAFORM_K8S blueprint in LOCAL mode, Gentepede first verifies the `gentepede-local` kind cluster exists (`kind get clusters`) and aborts with setup instructions if it is missing — before applying anything.
 
 **Inputs:**
 ```json
@@ -234,10 +231,8 @@ For EKS (`TERRAFORM_K8S`) blueprints, the response also includes a "Helm Deploy 
 
 **When to use:** Any time after apply to check if manual changes were made to AWS resources.
 
-**Note:** Meaningful primarily in PRODUCTION. In LOCAL mode, LocalStack state is ephemeral — if Docker restarts, all resources appear as drift.
-
 **What it runs:**
-1. PRODUCTION: credential pre-flight
+1. Credential pre-flight (`aws sts get-caller-identity`)
 2. `terraform plan -detailed-exitcode -out=gentepede-drift.tfplan`
    - Exit 0 = no drift
    - Exit 1 = terraform error
@@ -245,8 +240,6 @@ For EKS (`TERRAFORM_K8S`) blueprints, the response also includes a "Helm Deploy 
 3. On exit 2: `terraform show -json gentepede-drift.tfplan` (stdout captured in-memory)
 4. TERRAFORM_K8S: `helm diff upgrade {project} helm/ -f helm/values.yaml --namespace {project}`
    (skipped with informational message if helm-diff plugin not installed)
-
-**EKS LOCAL note:** for a TERRAFORM_K8S blueprint in LOCAL mode, Gentepede first verifies the `gentepede-local` kind cluster exists and aborts with setup instructions if it is missing.
 
 **Success response (no drift):**
 ```
@@ -266,14 +259,12 @@ Recommendation: Infrastructure matches desired state. No action required.
 **When to use:** When you want to remove all infrastructure. IRREVERSIBLE.
 
 **What it does:**
-1. PRODUCTION: credential pre-flight
+1. Credential pre-flight (`aws sts get-caller-identity`)
 2. TERRAFORM_K8S: `helm uninstall {project} --namespace {project}` (graceful if not found)
 3. TERRAFORM_K8S: `kubectl wait --for=delete pod --all -n {project} --timeout=300s`
 4. Backup `terraform.tfstate`
 5. `terraform destroy -auto-approve -no-color`
 6. Delete workspace directory (NOT backup files)
-
-**EKS LOCAL note:** for a TERRAFORM_K8S blueprint in LOCAL mode, Gentepede first verifies the `gentepede-local` kind cluster exists (the Helm uninstall and `kubectl wait` target it) and aborts with setup instructions if it is missing.
 
 **Inputs:**
 ```json

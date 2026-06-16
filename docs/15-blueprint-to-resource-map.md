@@ -227,7 +227,7 @@ If a new blueprint needs a data tier that doesn't exist yet (e.g. Aurora Serverl
    ```kotlin
    merged.putIfAbsent("enable_aurora", JsonPrimitive("AURORA_SERVERLESS" in types))
    ```
-5. Run the blueprint verifier: `./gradlew shadowJar && GENTEPEDE_MODE=LOCAL java -cp ... com.gentepede.ci.BlueprintVerifierKt --blueprint <new-id> --project test`
+5. Run the blueprint verifier: `./gradlew shadowJar && java -cp build/libs/gentepede-mcp-all.jar com.gentepede.ci.BlueprintVerifierKt --blueprint <new-id> --project test`
 
 See [docs/10-adding-blueprints.md](10-adding-blueprints.md) for the complete step-by-step guide.
 

@@ -1056,9 +1056,6 @@ resource "aws_ecs_service" "app" {
   deployment_minimum_healthy_percent = 100
   deployment_maximum_percent         = 200
 
-  # See variables.tf: false in LOCAL mode, since LocalStack never reports steady state.
-  wait_for_steady_state = var.ecs_wait_for_steady_state
-
   network_configuration {
     subnets          = aws_subnet.private[*].id
     security_groups  = [aws_security_group.ecs_tasks.id]

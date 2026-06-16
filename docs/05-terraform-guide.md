@@ -279,15 +279,13 @@ The S3 bucket remains fully private (`block_public_acls = true`). A bucket polic
 
 ## providers.tf — Why Runtime Generation?
 
-`providers.tf` is written at workspace creation time by InfrastructureService, not included in `templates/`. This enables the same template files to be used in both LOCAL and PRODUCTION mode by swapping the provider configuration. The alternative — two copies of each template — would double the maintenance burden and risk the copies diverging.
+`providers.tf` is written at workspace creation time by InfrastructureService, not included in `templates/`. This keeps project-specific values (S3 backend bucket, DynamoDB lock table, AWS region) out of the static template files. The alternative — templating these values into a static file — would require placeholder substitution in HCL, which Terraform does not natively support.
 
 The provider version comes from `terraformProviderVersion` in the blueprint JSON. Using exact version pinning (`= 5.82.0`, not `~> 5.0`) prevents the provider from being upgraded automatically, which could change resource behaviour between your generate and apply.
 
-## Remote State (PRODUCTION mode)
+## Remote State
 
-In LOCAL mode, Terraform state is stored in `terraform.tfstate` in the workspace directory.
-
-In PRODUCTION mode, `providers.tf` includes an S3 backend:
+Gentepede always uses an S3 remote state backend. `providers.tf` includes:
 ```hcl
 backend "s3" {
   bucket         = "{project_name}-tfstate"
@@ -302,7 +300,9 @@ backend "s3" {
 
 **Why DynamoDB locking?** Without it, two concurrent `terraform apply` runs would both succeed but produce conflicting state — resulting in orphaned resources or incorrect state. DynamoDB provides a distributed lock: the second apply waits until the first releases the lock.
 
-**Prerequisites:** The S3 bucket and DynamoDB table must exist before the first `terraform apply` in PRODUCTION mode. See `docs/12-end-to-end-walkthrough.md` Phase 7 for setup commands.
+**Prerequisites:** The S3 bucket and DynamoDB table must exist before the first `terraform apply`. See `docs/12-end-to-end-walkthrough.md` Phase 3 for setup commands.
+
+**Note:** `validate_infrastructure_package` runs `terraform init -backend=false`, which skips backend initialization entirely — no S3 credentials needed for validate.
 
 ## State Backups
 

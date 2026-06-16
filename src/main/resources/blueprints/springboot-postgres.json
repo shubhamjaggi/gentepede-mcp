@@ -65,7 +65,7 @@
     },
     {
       "name": "aws_profile",
-      "description": "AWS CLI profile name (PRODUCTION only)",
+      "description": "AWS CLI named profile",
       "type": "string",
       "default": "default",
       "required": false

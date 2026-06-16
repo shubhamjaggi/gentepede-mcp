@@ -96,7 +96,6 @@ class Engine(private val svc: InfrastructureService = InfrastructureService()) {
             sb.appendLine("=".repeat(60))
             sb.appendLine("Project:        $projectName")
             sb.appendLine("Blueprint:      $blueprintName")
-            sb.appendLine("Mode:           ${result.mode}")
             sb.appendLine("Output Type:    ${result.outputType}")
             sb.appendLine("Workspace:      ${result.workspacePath}")
             sb.appendLine()
@@ -184,7 +183,7 @@ class Engine(private val svc: InfrastructureService = InfrastructureService()) {
     /**
      * Runs `terraform plan`, writes the plan checksum, and optionally estimates cost.
      *
-     * PRODUCTION: prepends caller identity to the response.
+     * Prepends caller identity to the response.
      *
      * @param args must contain: project_name (string)
      * @return [CallToolResult] with plan summary, resource list, cost, and K8s manifests
@@ -303,10 +302,6 @@ class Engine(private val svc: InfrastructureService = InfrastructureService()) {
 
     /**
      * Detects infrastructure drift between Terraform state and real AWS.
-     *
-     * Meaningful primarily in PRODUCTION. In LOCAL mode, LocalStack state is ephemeral —
-     * if Docker restarts, all resources appear as drift. The tool works in LOCAL mode
-     * but results should be interpreted with this in mind.
      *
      * @param args must contain: project_name (string)
      * @return [CallToolResult] with combined Terraform and Kubernetes drift report

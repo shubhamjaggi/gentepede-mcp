@@ -94,31 +94,21 @@ class InfrastructureServiceTest {
     // ─────────────────────────────────────────────────────────────────────────
 
     @Test
-    fun `buildProvidersContent LOCAL mode contains LocalStack endpoint`() {
-        System.setProperty("GENTEPEDE_MODE_TEST", "LOCAL")
+    fun `buildProvidersContent always contains S3 backend and no LocalStack endpoint`() {
         val bp = svc.loadBlueprint("springboot-postgres")!!
-        val content = callBuildProvidersContentLocal(bp, "test-project", emptyMap())
-        assertTrue(content.contains("http://localhost:4566"), "LOCAL providers.tf must reference LocalStack")
-        assertTrue(content.contains("skip_credentials_validation = true"))
-        assertFalse(content.contains("backend \"s3\""), "LOCAL mode must not have S3 backend")
-    }
-
-    @Test
-    fun `buildProvidersContent PRODUCTION mode contains S3 backend`() {
-        val bp = svc.loadBlueprint("springboot-postgres")!!
-        val content = callBuildProvidersContentProduction(bp, "my-project", emptyMap())
-        assertTrue(content.contains("backend \"s3\""), "PRODUCTION must have S3 backend")
+        val content = svc.buildProvidersContent(bp, "my-project", emptyMap())
+        assertTrue(content.contains("backend \"s3\""), "providers.tf must have an S3 backend")
         assertTrue(content.contains("my-project-tfstate"), "S3 bucket name must contain project name")
         assertTrue(content.contains("dynamodb_table"), "Must have DynamoDB locking")
-        assertFalse(content.contains("localhost:4566"), "PRODUCTION must not reference LocalStack")
+        assertFalse(content.contains("localhost:4566"), "providers.tf must not reference LocalStack")
     }
 
     @Test
     fun `provider version in providers_tf comes from blueprint field not hardcoded`() {
         val bp = svc.loadBlueprint("springboot-postgres")!!
         val expectedVersion = bp.terraformProviderVersion
-        val localContent = callBuildProvidersContentLocal(bp, "proj", emptyMap())
-        assertTrue(localContent.contains("= $expectedVersion"),
+        val content = svc.buildProvidersContent(bp, "proj", emptyMap())
+        assertTrue(content.contains("= $expectedVersion"),
             "Provider version in providers.tf must match blueprint.terraformProviderVersion")
     }
 
@@ -185,39 +175,6 @@ class InfrastructureServiceTest {
         assertFalse(content.contains("enable_redis"), "lambda family must not emit enable_redis")
     }
 
-    @Test
-    fun `ecs blueprint tfvars disable steady-state wait in LOCAL mode`() {
-        // LocalStack Community's ECS emulation never reports steady state, so terraform
-        // apply would hang forever waiting on it — LOCAL mode must opt out.
-        val modeField = InfrastructureService::class.java.getDeclaredField("mode")
-        modeField.isAccessible = true
-        val originalMode = modeField.get(svc) as String
-        modeField.set(svc, "LOCAL")
-        try {
-            val content = svc.buildTfvarsContent(svc.loadBlueprint("ktor-dynamodb")!!, emptyMap())
-            assertTrue(content.contains("ecs_wait_for_steady_state = false"),
-                "LOCAL mode must disable ECS steady-state wait")
-        } finally {
-            modeField.set(svc, originalMode)
-        }
-    }
-
-    @Test
-    fun `ecs blueprint tfvars omit steady-state override in PRODUCTION mode`() {
-        // PRODUCTION must keep the Terraform default (true) so a bad rollout fails apply.
-        val modeField = InfrastructureService::class.java.getDeclaredField("mode")
-        modeField.isAccessible = true
-        val originalMode = modeField.get(svc) as String
-        modeField.set(svc, "PRODUCTION")
-        try {
-            val content = svc.buildTfvarsContent(svc.loadBlueprint("ktor-dynamodb")!!, emptyMap())
-            assertFalse(content.contains("ecs_wait_for_steady_state"),
-                "PRODUCTION mode must not override the steady-state default")
-        } finally {
-            modeField.set(svc, originalMode)
-        }
-    }
-
     // ─────────────────────────────────────────────────────────────────────────
     // Helm values.yaml generation
     // ─────────────────────────────────────────────────────────────────────────
@@ -268,38 +225,6 @@ class InfrastructureServiceTest {
         )
         val json = Json.encodeToString(GentepedeLock.serializer(), lock)
         assertFalse(json.contains("variableHash"), "variableHash must not appear in lock file")
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // kind cluster pre-flight (EKS LOCAL)
-    // ─────────────────────────────────────────────────────────────────────────
-
-    @Test
-    fun `EKS LOCAL operation aborts with setup instructions when kind cluster is missing`() {
-        // The pre-flight only runs in LOCAL mode (the default when GENTEPEDE_MODE is unset).
-        val modeField = InfrastructureService::class.java.getDeclaredField("mode")
-        modeField.isAccessible = true
-        Assumptions.assumeTrue(modeField.get(svc) == "LOCAL", "Pre-flight only applies in LOCAL mode")
-
-        // A TERRAFORM_K8S workspace is identified by the presence of a helm/ subdirectory.
-        val home = System.getProperty("user.home")
-        val projectName = "kind-preflight-test-${System.nanoTime()}"
-        val workspaceDir = Paths.get(home, ".gentepede", "workspaces", projectName)
-        Files.createDirectories(workspaceDir.resolve("helm"))
-        Files.createDirectories(workspaceDir.resolve("terraform"))
-        try {
-            // No gentepede-local kind cluster exists in the test environment, so the
-            // pre-flight must abort before any terraform/helm subprocess runs.
-            val ex = assertThrows(IllegalStateException::class.java) {
-                svc.destroyWorkspace(projectName)
-            }
-            assertTrue(ex.message!!.contains("kind cluster 'gentepede-local' not found"),
-                "EKS LOCAL operation must abort with kind setup instructions when the cluster is missing")
-            assertTrue(ex.message!!.contains("kind create cluster --name gentepede-local"),
-                "Abort message must include the exact cluster-creation command")
-        } finally {
-            workspaceDir.toFile().deleteRecursively()
-        }
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -386,8 +311,6 @@ class InfrastructureServiceTest {
             // Helm chart must be in helm/ subdirectory
             assertTrue(workspaceDir.resolve("helm/Chart.yaml").toFile().exists(), "helm/Chart.yaml must exist")
             assertTrue(workspaceDir.resolve("helm/values.yaml").toFile().exists(), "helm/values.yaml must exist")
-            // kind-config.yaml in workspace root
-            assertTrue(workspaceDir.resolve("kind-config.yaml").toFile().exists(), "kind-config.yaml must exist at workspace root")
         } finally {
             workspaceDir.toFile().deleteRecursively()
         }
@@ -435,23 +358,6 @@ class InfrastructureServiceTest {
         method.isAccessible = true
         val result = method.invoke(svc, tempDir) as Path
         assertEquals(terraformSubdir, result, "TERRAFORM_K8S: should return terraform/ subdir")
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // buildKindConfig
-    // ─────────────────────────────────────────────────────────────────────────
-
-    @Test
-    fun `buildKindConfig contains cluster name and port mappings`() {
-        val method = InfrastructureService::class.java.getDeclaredMethod("buildKindConfig", String::class.java)
-        method.isAccessible = true
-        val config = method.invoke(svc, "my-project") as String
-        assertTrue(config.contains("name: gentepede-local"), "Kind config must set cluster name to gentepede-local")
-        assertTrue(config.contains("containerPort: 80"), "Kind config must map port 80")
-        assertTrue(config.contains("containerPort: 443"), "Kind config must map port 443")
-        assertTrue(config.contains("hostPort: 8080"), "Kind config must expose host port 8080")
-        assertTrue(config.contains("role: control-plane"), "Kind config must declare a control-plane node")
-        assertTrue(config.contains("role: worker"), "Kind config must declare worker nodes")
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -528,6 +434,35 @@ class InfrastructureServiceTest {
         assertEquals(1, toModify, "Should count exactly 1 MODIFY")
         assertEquals(1, toDestroy, "Should count exactly 1 DESTROY")
         assertEquals(3, resources.size, "no-op resources must be excluded from the list")
+    }
+
+    @Test
+    fun `parsePlanChanges counts REPLACE as both create and destroy`() {
+        val method = InfrastructureService::class.java.getDeclaredMethod("parsePlanChanges", JsonObject::class.java)
+        method.isAccessible = true
+
+        val planJson = buildJsonObject {
+            put("resource_changes", buildJsonArray {
+                // Terraform emits ["delete", "create"] for in-place replacements
+                add(buildJsonObject {
+                    put("address", "aws_security_group.app")
+                    put("change", buildJsonObject {
+                        put("actions", buildJsonArray { add("delete"); add("create") })
+                    })
+                })
+            })
+        }
+
+        val result = method.invoke(svc, planJson)!!
+        val cls = result.javaClass
+        val toCreate = cls.getDeclaredField("toCreate").also { it.isAccessible = true }.getInt(result)
+        val toDestroy = cls.getDeclaredField("toDestroy").also { it.isAccessible = true }.getInt(result)
+        @Suppress("UNCHECKED_CAST")
+        val resources = cls.getDeclaredField("resources").also { it.isAccessible = true }.get(result) as List<*>
+
+        assertEquals(1, toCreate, "REPLACE must increment toCreate (new resource is created)")
+        assertEquals(1, toDestroy, "REPLACE must increment toDestroy (old resource is destroyed)")
+        assertEquals(1, resources.size, "REPLACE resource must appear exactly once in the list")
     }
 
     @Test
@@ -743,40 +678,4 @@ class InfrastructureServiceTest {
         assertEquals("nodejs-s3", id)
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Helpers to call private methods via reflection for unit testing
-    // ─────────────────────────────────────────────────────────────────────────
-
-    private fun callBuildProvidersContentLocal(
-        blueprint: Blueprint,
-        projectName: String,
-        userVariables: Map<String, JsonElement>
-    ): String {
-        // Temporarily override mode via reflection
-        val modeField = InfrastructureService::class.java.getDeclaredField("mode")
-        modeField.isAccessible = true
-        val originalMode = modeField.get(svc) as String
-        modeField.set(svc, "LOCAL")
-        try {
-            return svc.buildProvidersContent(blueprint, projectName, userVariables)
-        } finally {
-            modeField.set(svc, originalMode)
-        }
-    }
-
-    private fun callBuildProvidersContentProduction(
-        blueprint: Blueprint,
-        projectName: String,
-        userVariables: Map<String, JsonElement>
-    ): String {
-        val modeField = InfrastructureService::class.java.getDeclaredField("mode")
-        modeField.isAccessible = true
-        val originalMode = modeField.get(svc) as String
-        modeField.set(svc, "PRODUCTION")
-        try {
-            return svc.buildProvidersContent(blueprint, projectName, userVariables)
-        } finally {
-            modeField.set(svc, originalMode)
-        }
-    }
 }

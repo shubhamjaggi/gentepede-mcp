@@ -4,12 +4,12 @@ MCP server smoke test.
 
 Starts the fat JAR, completes the initialize handshake, calls tools/list,
 and verifies all 8 expected tools are registered. Tests the JSON-RPC protocol
-layer (Main.kt + Engine.kt) without any AWS, Terraform, or LocalStack dependency.
+layer (Main.kt + Engine.kt) without any AWS or Terraform dependency.
 
 Exit 0 = all 8 tools present.
 Exit 1 = missing tools, protocol error, or server crash.
 
-Wire format: the MCP Kotlin SDK v0.4.x uses newline-delimited JSON (NDJSON) —
+Wire format: the MCP Kotlin SDK v0.13.x uses newline-delimited JSON (NDJSON) —
 each message is a single JSON object followed by a newline character, with no
 Content-Length headers. Both sides must use this format.
 """
@@ -48,15 +48,13 @@ def read_response(proc) -> dict:
 
 
 def main() -> int:
-    env = {**os.environ, "GENTEPEDE_MODE": "LOCAL"}
-
     print(f"Starting MCP server from {JAR} ...")
     proc = subprocess.Popen(
         ["java", "-jar", JAR],
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
-        env=env,
+        env=os.environ,
     )
 
     try:

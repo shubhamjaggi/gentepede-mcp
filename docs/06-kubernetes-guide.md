@@ -103,62 +103,9 @@ Without ResourceQuota, a misbehaving deployment can exhaust all cluster CPU and 
 - `requests.memory: "2Gi"` / `limits.memory: "4Gi"`
 - `pods: "20"`: prevents runaway pod creation from a broken autoscaler
 
-## Local Testing with kind
-
-For LOCAL mode EKS blueprints, Gentepede generates a `kind-config.yaml` in the workspace root. The user creates the cluster manually:
-
-```bash
-kind create cluster --name gentepede-local \
-  --config ~/.gentepede/workspaces/my-eks-app/kind-config.yaml
-```
-
-**Why does the user create it manually?** InfrastructureService checks for the cluster's existence via `kind get clusters` and aborts with setup instructions if not found. It intentionally does NOT auto-create it. Rationale:
-1. Keeps cluster lifecycle in the user's hands — a kind cluster persists across Gentepede invocations
-2. Avoids a cryptic "context not found" error from helm/kubectl if the cluster is missing
-3. Separates the one-time cluster setup from the repeatable generate → validate → apply workflow
-
-**After cluster creation**, verify:
-```bash
-kind get clusters        # should show: gentepede-local
-kubectl get nodes        # should show 1 control-plane + 2 worker nodes
-```
-
-Helm targets the cluster via the `kind-gentepede-local` kubeconfig context, which kind creates automatically on cluster creation.
-
-### What's in kind-config.yaml?
-
-Gentepede generates a three-node cluster configuration:
-
-```yaml
-kind: Cluster
-apiVersion: kind.x-k8s.io/v1alpha4
-name: gentepede-local
-nodes:
-  - role: control-plane
-    kubeadmConfigPatches:
-      - |
-        kind: InitConfiguration
-        nodeRegistration:
-          kubeletExtraArgs:
-            node-labels: "ingress-ready=true"   # Marks node as capable of running ingress
-    extraPortMappings:
-      - containerPort: 80
-        hostPort: 8080    # Access the cluster's port 80 via http://localhost:8080 on your machine
-        protocol: TCP
-      - containerPort: 443
-        hostPort: 8443    # Access the cluster's port 443 via https://localhost:8443 on your machine
-        protocol: TCP
-  - role: worker          # Two workers allow the HPA to spread pods across nodes
-  - role: worker
-```
-
-**Why port mappings?** Docker runs kind nodes as containers. Without `extraPortMappings`, port 80 and 443 inside the kind cluster are only reachable inside Docker's network — not from your browser. The mappings forward `localhost:8080` → cluster port 80 and `localhost:8443` → cluster port 443, so you can access deployed services from your machine without `kubectl port-forward`.
-
-**Why `ingress-ready=true`?** The ALB Ingress Controller (used in production EKS) uses node selectors to target ingress-ready nodes. Labelling the control-plane node makes kind compatible with the same ingress manifests used in production.
-
 ### Kubernetes Namespace Per Project
 
-When Helm deploys to the kind cluster (or a real EKS cluster), it creates a dedicated namespace named after the project:
+When Helm deploys to an EKS cluster, it creates a dedicated namespace named after the project:
 
 ```bash
 helm upgrade --install my-eks-app helm/ \

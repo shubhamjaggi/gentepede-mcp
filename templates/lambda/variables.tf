@@ -13,7 +13,7 @@ variable "aws_region" {
 }
 
 variable "aws_profile" {
-  description = "AWS CLI named profile. Used by the PRODUCTION provider; ignored in LOCAL mode."
+  description = "AWS CLI named profile."
   type        = string
   default     = "default"
 }

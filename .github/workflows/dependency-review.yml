@@ -1,0 +1,35 @@
+name: Dependency Review
+
+# Runs on every pull request to main. Compares the dependencies introduced by
+# the PR against the existing dependency graph and fails if any new dependency
+# has a known HIGH or CRITICAL severity vulnerability.
+#
+# Uses GitHub's built-in dependency review — no third-party service or API key.
+# Free for all public repositories.
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  dependency-review:
+    name: Dependency Review
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Dependency review
+        uses: actions/dependency-review-action@v4
+        with:
+          # Fail only on HIGH and CRITICAL vulnerabilities. MODERATE and LOW
+          # findings generate a warning comment on the PR but do not block merge.
+          fail-on-severity: high
+          # Write a summary comment to the PR with the full dependency diff.
+          comment-summary-in-pr: always

@@ -1,13 +1,13 @@
 # Gentepede MCP
 
 [![CI](https://github.com/shubhamjaggi/gentepede-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/shubhamjaggi/gentepede-mcp/actions/workflows/ci.yml)
-[![LocalStack Integration](https://github.com/shubhamjaggi/gentepede-mcp/actions/workflows/integration-local.yml/badge.svg)](https://github.com/shubhamjaggi/gentepede-mcp/actions/workflows/integration-local.yml)
+[![Lint](https://github.com/shubhamjaggi/gentepede-mcp/actions/workflows/lint.yml/badge.svg)](https://github.com/shubhamjaggi/gentepede-mcp/actions/workflows/lint.yml)
 [![Blueprint Verification](https://github.com/shubhamjaggi/gentepede-mcp/actions/workflows/blueprint-verify.yml/badge.svg)](https://github.com/shubhamjaggi/gentepede-mcp/actions/workflows/blueprint-verify.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Java 21](https://img.shields.io/badge/Java-21-orange.svg)](https://adoptium.net/)
-[![Kotlin](https://img.shields.io/badge/Kotlin-2.1-purple.svg)](https://kotlinlang.org/)
+[![Kotlin](https://img.shields.io/badge/Kotlin-2.4-purple.svg)](https://kotlinlang.org/)
 
-A Kotlin-based [MCP](docs/00-glossary.md#mcp-model-context-protocol) server that acts as a deterministic Knowledge Engine for enterprise cloud architectures. Maps application tech-stacks (Spring Boot, Ktor, Node.js, FastAPI) to fully provisioned, secure [AWS](docs/00-glossary.md#aws-amazon-web-services) infrastructure via [Terraform](docs/00-glossary.md#terraform) — and for EKS blueprints also generates a production-ready [Helm](docs/00-glossary.md#helm) chart alongside the Terraform. Features a full plan-review-apply pipeline, live cost estimation via [Infracost](docs/00-glossary.md#infracost), drift detection, credential transparency, and free local [K8s](docs/00-glossary.md#kubernetes) testing via [`kind`](docs/00-glossary.md#kind-kubernetes-in-docker).
+A Kotlin-based [MCP](docs/00-glossary.md#mcp-model-context-protocol) server that acts as a deterministic Knowledge Engine for enterprise cloud architectures. Maps application tech-stacks (Spring Boot, Ktor, Node.js, FastAPI) to fully provisioned, secure [AWS](docs/00-glossary.md#aws-amazon-web-services) infrastructure via [Terraform](docs/00-glossary.md#terraform) — and for EKS blueprints also generates a production-ready [Helm](docs/00-glossary.md#helm) chart alongside the Terraform. Features a full plan-review-apply pipeline, live cost estimation via [Infracost](docs/00-glossary.md#infracost), drift detection, and credential transparency.
 
 ---
 
@@ -23,8 +23,8 @@ MCP Client (Claude Desktop) → Gentepede Server → Blueprint Engine
                       checkov lint          infracost                        │
                                       │                           helm upgrade --install
                                plan → apply                                  │
-                                      │                         [kind cluster | EKS]
-                           [LocalStack | AWS]
+                                      │                              EKS (real AWS)
+                                   real AWS
 ```
 
 ---
@@ -36,11 +36,9 @@ Install all of the following before building:
 | Tool | Purpose | Install |
 |---|---|---|
 | Java 21 | JVM runtime for the server | [SDKMAN](https://sdkman.io/) / [Homebrew](https://brew.sh/) / [winget](https://learn.microsoft.com/en-us/windows/package-manager/) |
-| Docker | LocalStack + kind backend | [Docker Desktop](https://www.docker.com/products/docker-desktop/) |
 | Terraform | IaC provisioning | `brew install terraform` |
 | checkov | Security linter | `pip install checkov` |
 | Helm | Kubernetes packaging | `brew install helm` |
-| kind | Local K8s cluster | `brew install kind` |
 | kube-score | K8s manifest linter | [GitHub releases](https://github.com/zegl/kube-score/releases) |
 | infracost | Cost estimation | `brew install infracost` |
 | kubectl | Kubernetes CLI | `brew install kubectl` |
@@ -56,22 +54,19 @@ git clone https://github.com/shubhamjaggi/gentepede-mcp
 cd gentepede-mcp
 ./gradlew shadowJar
 
-# 2. Start LocalStack (for LOCAL mode)
-docker run -d --name localstack -p 4566:4566 localstack/localstack
-
-# 3. Configure Claude Desktop
+# 2. Configure Claude Desktop
 # Add to ~/Library/Application Support/Claude/claude_desktop_config.json:
 # {
 #   "mcpServers": {
 #     "gentepede": {
 #       "command": "java",
 #       "args": ["-jar", "/path/to/build/libs/gentepede-mcp-all.jar"],
-#       "env": { "GENTEPEDE_MODE": "LOCAL" }
+#       "env": { "AWS_PROFILE": "my-profile", "AWS_DEFAULT_REGION": "us-east-1" }
 #     }
 #   }
 # }
 
-# 4. Restart Claude Desktop, then ask:
+# 3. Restart Claude Desktop, then ask:
 # "List available Gentepede blueprints"
 # "Generate a Spring Boot + Postgres ECS infrastructure called 'my-api'"
 ```
@@ -104,9 +99,8 @@ audit_infrastructure_package      → Standalone security report (any time)
 
 | Environment Variable | Default | Description |
 |---|---|---|
-| `GENTEPEDE_MODE` | `LOCAL` | `LOCAL` = LocalStack; `PRODUCTION` = real AWS |
-| `AWS_REGION` | `us-east-1` | AWS region for PRODUCTION deployments |
-| `AWS_PROFILE` | `default` | AWS CLI named profile for PRODUCTION |
+| `AWS_DEFAULT_REGION` | `us-east-1` | AWS region for deployments |
+| `AWS_PROFILE` | `default` | AWS CLI named profile |
 | `TF_LOG` | (unset) | Set to `DEBUG` to see Terraform API calls |
 | `KUBECONFIG` | `~/.kube/config` | Kubernetes config file location |
 
@@ -127,7 +121,7 @@ audit_infrastructure_package      → Standalone security report (any time)
 
 ## Security Model
 
-Gentepede embeds security best practices directly in every Terraform template and Helm chart — you cannot generate insecure infrastructure without modifying the templates. checkov runs as a gate before planning (blocks on HIGH/CRITICAL); kube-score validates Kubernetes manifests. AWS credential identity is confirmed before every PRODUCTION operation, and plan file checksums prevent stale plan application. See [docs/09-security-model.md](docs/09-security-model.md).
+Gentepede embeds security best practices directly in every Terraform template and Helm chart — you cannot generate insecure infrastructure without modifying the templates. checkov runs as a gate before planning (blocks on HIGH/CRITICAL); kube-score validates Kubernetes manifests. AWS credential identity is confirmed before every operation that contacts AWS, and plan file checksums prevent stale plan application. See [docs/09-security-model.md](docs/09-security-model.md).
 
 ---
 
@@ -141,13 +135,12 @@ Gentepede embeds security best practices directly in every Terraform template an
 | [docs/03-how-mcp-works.md](docs/03-how-mcp-works.md) | MCP protocol, stdio transport, Claude Desktop config |
 | [docs/04-blueprints-guide.md](docs/04-blueprints-guide.md) | Blueprint schema field-by-field, outputType comparison |
 | [docs/05-terraform-guide.md](docs/05-terraform-guide.md) | Resource-by-resource walkthrough, state management |
-| [docs/06-kubernetes-guide.md](docs/06-kubernetes-guide.md) | ECS vs EKS, Helm chart walkthrough, kind setup |
-| [docs/07-dual-mode-guide.md](docs/07-dual-mode-guide.md) | LOCAL vs PRODUCTION: providers.tf side-by-side |
+| [docs/06-kubernetes-guide.md](docs/06-kubernetes-guide.md) | ECS vs EKS, Helm chart walkthrough, Kubernetes resources |
 | [docs/08-tools-reference.md](docs/08-tools-reference.md) | All 8 tools: full input/output, workflow diagram |
 | [docs/09-security-model.md](docs/09-security-model.md) | checkov + kube-score tables, credential pre-flight |
 | [docs/10-adding-blueprints.md](docs/10-adding-blueprints.md) | Worked example: adding `go-dynamodb` end-to-end |
 | [docs/11-troubleshooting.md](docs/11-troubleshooting.md) | Every common error with exact message, cause, fix |
-| [docs/12-end-to-end-walkthrough.md](docs/12-end-to-end-walkthrough.md) | Complete Phase 1-7 walkthrough from fresh machine |
+| [docs/12-end-to-end-walkthrough.md](docs/12-end-to-end-walkthrough.md) | Complete Phase 1-6 walkthrough from fresh machine to AWS deployment |
 | [docs/13-development-guide.md](docs/13-development-guide.md) | Build, test, debug, project structure for contributors |
 | [docs/14-faq.md](docs/14-faq.md) | Common questions from users and contributors |
 | [docs/15-blueprint-to-resource-map.md](docs/15-blueprint-to-resource-map.md) | Full mapping: which blueprint provisions which AWS services and why |

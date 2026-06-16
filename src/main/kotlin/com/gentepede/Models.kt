@@ -115,7 +115,6 @@ data class GentepedeLock(
 /** Outcome of generate_infrastructure_package. */
 data class GenerateResult(
     val workspacePath: String,
-    val mode: String,
     val outputType: OutputType,
     val awsResources: List<String>,
     val nextStep: String,

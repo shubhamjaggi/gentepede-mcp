@@ -1,0 +1,103 @@
+name: Lint
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# All lint jobs run in parallel and independently of the build. Fast failures
+# here let contributors fix formatting/schema issues without waiting for the JVM build.
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Job 1: Terraform format check + tflint (AWS ruleset)
+  # terraform fmt catches whitespace and alignment drift that makes diffs noisy.
+  # tflint catches deprecated attributes, invalid AWS resource arguments, and
+  # other mistakes that terraform validate (run by BlueprintVerifierKt) does not.
+  # ─────────────────────────────────────────────────────────────────────────────
+  terraform:
+    name: Terraform (fmt + tflint)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.9.8"
+
+      # Fails if any .tf file in templates/ is not correctly formatted.
+      # Fix locally with: terraform fmt -recursive templates/
+      - name: terraform fmt check
+        run: terraform fmt -check -recursive templates/
+
+      - name: Set up tflint
+        uses: terraform-linters/setup-tflint@v4
+        with:
+          tflint_version: "v0.55.0"
+
+      # Downloads the tflint AWS plugin declared in .tflint.hcl.
+      # GITHUB_TOKEN is passed to avoid GitHub API rate-limiting during plugin download.
+      - name: Initialize tflint plugins
+        run: tflint --init
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      # Run tflint on each template family. .tflint.hcl at the repo root is discovered
+      # automatically because tflint walks parent directories from the --chdir path.
+      - name: tflint — ecs
+        run: tflint --chdir=templates/ecs
+
+      - name: tflint — lambda
+        run: tflint --chdir=templates/lambda
+
+      - name: tflint — eks
+        run: tflint --chdir=templates/eks
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Job 2: Blueprint JSON schema validation
+  # Validates each blueprint JSON against the expected structural schema before
+  # the full JVM-based BlueprintVerifierKt run. Catches missing required fields,
+  # invalid enum values, and structural drift much faster and with clearer errors.
+  # ─────────────────────────────────────────────────────────────────────────────
+  blueprint-json:
+    name: Blueprint JSON schema
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Validate blueprint JSON schemas
+        run: python3 .github/scripts/validate-blueprint-schemas.py
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Job 3: YAML lint
+  # Checks GitHub Actions workflow files and dependabot.yml for YAML correctness.
+  # Catches indentation errors, invalid syntax, and style issues that can cause
+  # silent GitHub Actions failures.
+  # ─────────────────────────────────────────────────────────────────────────────
+  yaml:
+    name: YAML lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Install yamllint
+        run: pip install yamllint
+
+      # Configuration is in .yamllint.yml at the repo root.
+      # Lints all YAML files under .github/ (workflows + dependabot.yml).
+      - name: yamllint
+        run: yamllint .github/

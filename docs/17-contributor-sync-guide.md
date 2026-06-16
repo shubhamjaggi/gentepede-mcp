@@ -85,7 +85,6 @@ Each template family directory (`templates/ecs/`, `templates/lambda/`, `template
 | Dependent | What must change |
 |---|---|
 | `README.md` Configuration Matrix table | New variable row |
-| `docs/07-dual-mode-guide.md` | If it affects LOCAL vs PRODUCTION behaviour |
 | `docs/03-how-mcp-works.md` | If it appears in the Claude Desktop config example |
 
 ### Checkov security rules
@@ -101,6 +100,16 @@ Each template family directory (`templates/ecs/`, `templates/lambda/`, `template
 |---|---|
 | `docs/09-security-model.md` kube-score table | New check added or removed |
 | `helm-chart/templates/` | The specific field that satisfies (or would violate) the check |
+
+### CI workflows (`.github/workflows/`) and scripts (`.github/scripts/`)
+
+| Dependent | What must change |
+|---|---|
+| `docs/18-github-actions-guide.md` | Add/update the section for the new or modified workflow; describe what it does, when it runs, and which job/step it adds |
+| `docs/13-development-guide.md` project structure tree | New workflow file or script must appear in the `.github/` tree |
+| `docs/13-development-guide.md` CI Workflows section | If a new workflow is added, add its summary paragraph alongside `ci.yml`, `lint.yml`, etc. |
+| `README.md` badges | If the new workflow runs on every push/PR, add a status badge so its health is visible at a glance |
+| `docs/14-faq.md` "What do the CI badges in the README mean?" | Update if a new badge is added |
 
 ---
 
@@ -132,7 +141,7 @@ Adding a blueprint that reuses an existing template family (`ecs`, `lambda`, or 
 
 #### Verification
 
-- [ ] Local: `./gradlew shadowJar && GENTEPEDE_MODE=LOCAL java -cp build/libs/gentepede-mcp-all.jar com.gentepede.ci.BlueprintVerifierKt --blueprint {id} --project test-{id}` exits 0
+- [ ] Local: `./gradlew shadowJar && java -cp build/libs/gentepede-mcp-all.jar com.gentepede.ci.BlueprintVerifierKt --blueprint {id} --project test-{id}` exits 0
 - [ ] Local: checkov passes on the generated workspace (`validate_infrastructure_package` in Claude Desktop or via the verifier)
 - [ ] CI: `./gradlew build` is green
 
@@ -200,7 +209,7 @@ Adding a new callable tool beyond the existing eight (`list_available_blueprints
 #### Verification
 
 - [ ] `./gradlew build` green (compile + tests)
-- [ ] Manual end-to-end test in Claude Desktop (LOCAL mode) — tool appears in tool list, success case works, error case returns clean message
+- [ ] Manual end-to-end test in Claude Desktop — tool appears in tool list, success case works, error case returns clean message
 
 ---
 
@@ -277,7 +286,7 @@ The provider version is the same across all blueprints — they all share the sa
   ```bash
   ./gradlew shadowJar
   for id in springboot-postgres ktor-dynamodb nodejs-s3 fastapi-redis springboot-eks nodejs-eks; do
-    GENTEPEDE_MODE=LOCAL java -cp build/libs/gentepede-mcp-all.jar \
+    java -cp build/libs/gentepede-mcp-all.jar \
       com.gentepede.ci.BlueprintVerifierKt --blueprint $id --project ci-test-$id
   done
   ```
@@ -351,23 +360,12 @@ python3 .github/scripts/mcp-smoke-test.py
 # 4. Run the blueprint verifier against all blueprints (terraform validate + checkov)
 for id in springboot-postgres ktor-dynamodb nodejs-s3 fastapi-redis springboot-eks nodejs-eks; do
   echo "=== $id ==="
-  GENTEPEDE_MODE=LOCAL java -cp build/libs/gentepede-mcp-all.jar \
+  java -cp build/libs/gentepede-mcp-all.jar \
     com.gentepede.ci.BlueprintVerifierKt --blueprint $id --project ci-test-$id
 done
-
-# 5. (Optional) Full end-to-end LocalStack integration test for ktor-dynamodb
-#    Requires Docker and LocalStack running at localhost:4566
-docker run -d -p 4566:4566 localstack/localstack:3
-GENTEPEDE_MODE=LOCAL AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test \
-  java -cp build/libs/gentepede-mcp-all.jar \
-  com.gentepede.ci.IntegrationVerifierKt \
-  --blueprint ktor-dynamodb --project ci-integ-test \
-  --var container_image=public.ecr.aws/docker/library/nginx:latest \
-  --var certificate_arn=arn:aws:acm:us-east-1:000000000000:certificate/test \
-  --var dynamodb_table_name=test-table
 ```
 
-If any step fails, resolve it before opening the PR. The CI workflows run steps 1–5 automatically on every push (see `docs/18-github-actions-guide.md` for a full description of each workflow).
+If any step fails, resolve it before opening the PR. The CI workflows run steps 1–4 automatically on every push (see `docs/18-github-actions-guide.md` for a full description of each workflow).
 
 ---
 

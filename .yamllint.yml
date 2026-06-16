@@ -1,0 +1,23 @@
+extends: default
+
+rules:
+  line-length:
+    # Long lines are common in CI workflow files (run: blocks, args strings).
+    # Treat them as a warning, not an error, to avoid noise on multi-line commands.
+    max: 160
+    level: warning
+
+  truthy:
+    # GitHub Actions uses 'on:' as a top-level mapping key (the trigger block).
+    # With check-keys: true (yamllint default), yamllint would flag 'on' as a
+    # non-boolean truthy value. check-keys: false disables that check for keys.
+    allowed-values: ['true', 'false']
+    check-keys: false
+
+  comments:
+    # Require at least one space between the '#' character and the comment text.
+    min-spaces-from-content: 1
+
+  # Do not require YAML files to start with '---'. GitHub Actions and dependabot
+  # configuration files conventionally omit the document-start marker.
+  document-start: disable

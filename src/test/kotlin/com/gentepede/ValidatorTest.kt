@@ -227,14 +227,13 @@ class ValidatorTest {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // AWS credential pre-flight failure (PRODUCTION)
+    // AWS credential pre-flight failure
     // ─────────────────────────────────────────────────────────────────────────
 
     @Test
     fun `getCallerIdentity wraps aws sts failure with clear credential error message`() {
         // We cannot run aws sts in unit tests without credentials.
         // Verify the error wrapping code path via ProcessExecutionException re-throw.
-        // The actual credential check is integration-tested in CI against LocalStack.
         // Here we verify that the exception message contains helpful guidance.
         val ex = ProcessExecutionException(
             "aws sts get-caller-identity",
@@ -351,19 +350,6 @@ class ValidatorTest {
         val line = "v1/Pod nginx · Check [CRITICAL] $longDescription"
         val result = method.invoke(Validator, line) as KubeAuditFinding
         assertTrue(result.check.length <= 80, "check field must be capped at 80 characters")
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // kindClusterExists
-    // ─────────────────────────────────────────────────────────────────────────
-
-    @Test
-    fun `kindClusterExists returns false when kind is not in PATH`() {
-        if (!Validator.isCommandAvailable("kind")) {
-            assertFalse(Validator.kindClusterExists(),
-                "kindClusterExists must return false when 'kind' is not installed")
-        }
-        // If kind is installed, we skip this assertion (cannot control what clusters exist in CI)
     }
 
     // ─────────────────────────────────────────────────────────────────────────

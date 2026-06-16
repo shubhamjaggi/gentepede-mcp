@@ -14,15 +14,13 @@ This is deliberately simple: no HTTP server, no port binding, no TLS configurati
 
 ## JSON-RPC Message Format
 
-Each message is prefixed with a `Content-Length` header followed by a blank line and the JSON body:
+Each message is a single JSON object followed by a newline character — one line per message (newline-delimited JSON, NDJSON):
 
 ```
-Content-Length: 127\r\n
-\r\n
 {"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"list_available_blueprints","arguments":{}}}
 ```
 
-The MCP SDK handles this framing automatically. You never write Content-Length headers in Gentepede's code.
+No `Content-Length` header, no blank-line separator — just one JSON object per line. The MCP SDK handles this framing automatically. You never write newline logic in Gentepede's code.
 
 ## The Initialize Handshake
 
@@ -38,7 +36,7 @@ After this handshake, the client knows the server's capabilities and Claude can 
 
 ## Why the Official MCP Kotlin SDK?
 
-Gentepede uses `io.modelcontextprotocol:kotlin-sdk:0.4.0` rather than hand-rolling JSON-RPC for several reasons:
+Gentepede uses `io.modelcontextprotocol:kotlin-sdk:0.13.0` rather than hand-rolling JSON-RPC for several reasons:
 
 1. **Correctness**: The SDK implements the exact MCP spec, including the initialize handshake, capability negotiation, and error response format. Hand-rolled implementations miss edge cases.
 2. **Maintenance**: When the protocol evolves, updating the SDK version is one line in `build.gradle.kts`.
@@ -59,7 +57,8 @@ Add this to your Claude Desktop configuration file:
       "command": "java",
       "args": ["-jar", "/absolute/path/to/gentepede-mcp-all.jar"],
       "env": {
-        "GENTEPEDE_MODE": "LOCAL"
+        "AWS_PROFILE": "my-aws-profile",
+        "AWS_DEFAULT_REGION": "us-east-1"
       }
     }
   }
@@ -69,16 +68,8 @@ Add this to your Claude Desktop configuration file:
 Field explanations:
 - `command`: the executable to start (`java` must be in PATH, or use the full path)
 - `args`: passed directly to `java` — the JAR path must be absolute
-- `env.GENTEPEDE_MODE`: `LOCAL` (default) uses LocalStack; `PRODUCTION` uses real AWS
-
-To switch to production:
-```json
-"env": {
-  "GENTEPEDE_MODE": "PRODUCTION",
-  "AWS_REGION": "us-east-1",
-  "AWS_PROFILE": "my-aws-profile"
-}
-```
+- `env.AWS_PROFILE`: AWS CLI named profile for credential lookup (optional if credentials are already in the environment)
+- `env.AWS_DEFAULT_REGION`: AWS region for deployments
 
 ## Step-by-Step: What Happens When You Ask Claude
 

@@ -16,9 +16,9 @@ No. The generated workspace (`~/.gentepede/workspaces/{project}/`) contains plai
 
 Yes. Gentepede implements the Model Context Protocol standard. Any MCP-compatible client can use it. Claude Desktop is the reference client, but the protocol is open and other clients exist.
 
-### Does Gentepede work without LocalStack?
+### Do I need AWS credentials to use all tools?
 
-`validate_infrastructure_package` makes zero AWS API calls and works without LocalStack. `generate_infrastructure_package` is also entirely local. LocalStack is only needed for `plan_infrastructure_package`, `apply_infrastructure_package`, `detect_drift`, and `destroy_infrastructure_package` when running in LOCAL mode.
+`validate_infrastructure_package` and `generate_infrastructure_package` make zero AWS API calls — no credentials required. `plan_infrastructure_package`, `apply_infrastructure_package`, `detect_drift`, and `destroy_infrastructure_package` contact real AWS and require valid credentials configured in your environment.
 
 ### What happens if I modify the generated Terraform files?
 
@@ -65,7 +65,7 @@ In `InfrastructureService.kt`. Engine.kt is only for MCP parameter extraction an
 Use the unit tests: `./gradlew test`. For a more realistic test, use `BlueprintVerifierKt` directly:
 ```bash
 ./gradlew shadowJar
-GENTEPEDE_MODE=LOCAL java -cp build/libs/gentepede-mcp-all.jar \
+java -cp build/libs/gentepede-mcp-all.jar \
   com.gentepede.ci.BlueprintVerifierKt \
   --blueprint springboot-postgres \
   --project test-springboot
@@ -74,7 +74,7 @@ This runs `generateWorkspace` + `validateWorkspace` with your changes, including
 
 ### Why is `providers.tf` generated at runtime instead of being in the template directory?
 
-Because the same template files (main.tf, variables.tf) must work with both LocalStack and real AWS. `providers.tf` is the only file that differs between the two modes — it swaps the provider endpoint configuration and adds/removes the S3 backend. Generating it at runtime from `InfrastructureService.buildProvidersContent()` is simpler than maintaining two copies of every template or using Terraform workspaces.
+Because `providers.tf` contains project-specific values — the S3 backend bucket name, DynamoDB lock table name, and AWS region — that come from the user's variables at generate time. Generating it at runtime from `InfrastructureService.buildProvidersContent()` is simpler than templating it and keeps the static template files free of placeholder tokens.
 
 ### Why does InfrastructureService use `check()` instead of `require()` for workspace guards?
 
@@ -108,13 +108,14 @@ Missing the documentation steps means the repo is internally inconsistent: the c
 ### What do the CI badges in the README mean?
 
 - **CI badge**: build + unit tests pass on every push to `main`
+- **Lint badge**: Terraform fmt, tflint, blueprint JSON schema, and YAML lint all pass on every push to `main`
 - **Blueprint Verification badge**: all 6 blueprints pass `terraform validate` + checkov weekly
 
 If the blueprint verification badge is red, check the GitHub Actions workflow run for which blueprint failed. The workflow auto-opens a GitHub issue with the failing blueprint and a reproduction command.
 
 ### Why does the blueprint verifier run `terraform validate` but not `terraform plan`?
 
-`terraform plan` contacts AWS (or LocalStack) to check what currently exists. `terraform validate` is purely local — it checks HCL syntax and variable type correctness. The weekly job is designed to catch provider schema changes that make a template invalid (e.g. a resource argument that was removed in a provider upgrade), not to deploy anything. Running it purely statically means it works without credentials, without LocalStack, and finishes in minutes.
+`terraform plan` contacts AWS to check what currently exists. `terraform validate` is purely local — it checks HCL syntax and variable type correctness. The weekly job is designed to catch provider schema changes that make a template invalid (e.g. a resource argument that was removed in a provider upgrade), not to deploy anything. Running it purely statically means it works without credentials and finishes in minutes.
 
 ### Why pin the AWS provider to an exact version (`= 5.82.0`) instead of a range (`~> 5.0`)?
 

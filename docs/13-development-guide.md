@@ -46,10 +46,12 @@ gentepede-mcp/
 ├── docs/                                ← All documentation
 ├── .github/
 │   ├── scripts/
-│   │   └── mcp-smoke-test.py            ← MCP JSON-RPC smoke test (run by ci.yml)
+│   │   ├── mcp-smoke-test.py            ← MCP JSON-RPC smoke test (run by ci.yml)
+│   │   └── validate-blueprint-schemas.py ← Blueprint JSON schema validator (run by lint.yml)
 │   ├── workflows/
 │   │   ├── ci.yml                       ← Build + test + smoke test + blueprint validate (every push/PR)
-│   │   ├── integration-local.yml        ← Full LocalStack end-to-end for ktor-dynamodb (every push/PR)
+│   │   ├── lint.yml                     ← Terraform fmt + tflint + blueprint JSON schema + YAML lint (every push/PR)
+│   │   ├── dependency-review.yml        ← PR dependency vulnerability check
 │   │   └── blueprint-verify.yml         ← Weekly terraform validate + checkov + lastVerifiedDate update
 │   ├── ISSUE_TEMPLATE/
 │   ├── PULL_REQUEST_TEMPLATE.md
@@ -119,13 +121,12 @@ Test reports (HTML): `build/reports/tests/test/index.html`
 
 ### What the Tests Cover
 
-`InfrastructureServiceTest` tests the business logic layer directly — no MCP server, no actual Terraform, no LocalStack:
+`InfrastructureServiceTest` tests the business logic layer directly — no MCP server, no actual Terraform, no AWS:
 
 - **Blueprint loading** — all 6 blueprint IDs load correctly, required fields are present
 - **Workspace generation** — `generateWorkspace` creates the expected files in the right directories
 - **tfvars content** — variables are merged correctly; `buildTfvarsContent` produces valid HCL
 - **Data-tier toggles** — `enable_rds`, `enable_dynamodb`, `enable_redis` are set correctly per blueprint
-- **Kind pre-flight** — `preflightKindClusterIfLocalK8s` throws `IllegalStateException` with the expected message when the kind cluster is missing and `GENTEPEDE_MODE=LOCAL`
 
 `ValidatorTest` tests output parsing and CLI availability logic in isolation — no external tools need to be installed:
 
@@ -147,15 +148,15 @@ The server reads MCP JSON-RPC from stdin and writes to stdout. To interact with 
 # Build first
 ./gradlew shadowJar
 
-# Start in LOCAL mode
-GENTEPEDE_MODE=LOCAL java -jar build/libs/gentepede-mcp-all.jar
+# Start the server
+java -jar build/libs/gentepede-mcp-all.jar
 ```
 
 The server blocks on stdin. You can send a raw MCP initialize message to test:
 
 ```bash
 echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"0.1"}}}' | \
-  GENTEPEDE_MODE=LOCAL java -jar build/libs/gentepede-mcp-all.jar
+  java -jar build/libs/gentepede-mcp-all.jar
 ```
 
 The response will be a JSON-RPC result containing the server's capabilities and the 8 registered tools.
@@ -173,7 +174,7 @@ Runs `generateWorkspace` + `validateWorkspace` (`terraform validate` + checkov).
 ```bash
 ./gradlew shadowJar
 
-GENTEPEDE_MODE=LOCAL java -cp build/libs/gentepede-mcp-all.jar \
+java -cp build/libs/gentepede-mcp-all.jar \
   com.gentepede.ci.BlueprintVerifierKt \
   --blueprint springboot-postgres \
   --project ci-test-sp
@@ -190,30 +191,7 @@ Starts the JAR and verifies all 8 tools register correctly via JSON-RPC:
 python3 .github/scripts/mcp-smoke-test.py
 ```
 
-Exit 0 = all 8 tools present. No Terraform, LocalStack, or AWS needed.
-
-### Integration Verifier (full flow against LocalStack)
-
-Runs the complete generate → validate → plan → apply → drift → audit → destroy flow. Requires LocalStack running at `localhost:4566`.
-
-```bash
-# Start LocalStack (Docker required)
-docker run -d -p 4566:4566 localstack/localstack:3
-
-./gradlew shadowJar
-
-GENTEPEDE_MODE=LOCAL \
-AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test \
-java -cp build/libs/gentepede-mcp-all.jar \
-  com.gentepede.ci.IntegrationVerifierKt \
-  --blueprint ktor-dynamodb \
-  --project local-integration-test \
-  --var container_image=public.ecr.aws/docker/library/nginx:latest \
-  --var certificate_arn=arn:aws:acm:us-east-1:000000000000:certificate/test \
-  --var dynamodb_table_name=test-table
-```
-
-Exit codes: 0 = all 7 steps passed, 1 = a step failed, 2 = bad arguments.
+Exit 0 = all 8 tools present. No Terraform or AWS needed.
 
 ---
 
@@ -226,7 +204,7 @@ See `docs/10-adding-blueprints.md` for the step-by-step guide and `docs/17-contr
 3. If the blueprint's `awsResources` include a new type not handled by an existing family, add a new toggle in `injectDataTierToggles()` and gate the resource in the corresponding `main.tf` with `count = var.enable_X ? 1 : 0`
 4. If the blueprint is `TERRAFORM_K8S` with a new framework, add a port/path triple to `buildHelmValues()`
 5. Update four documentation files: `README.md`, `docs/04-blueprints-guide.md`, `docs/15-blueprint-to-resource-map.md`, and `docs/00-glossary.md` (if new services introduced)
-6. Run `./gradlew shadowJar && GENTEPEDE_MODE=LOCAL java -cp ... com.gentepede.ci.BlueprintVerifierKt --blueprint {id} --project test-{id}`
+6. Run `./gradlew shadowJar && java -cp build/libs/gentepede-mcp-all.jar com.gentepede.ci.BlueprintVerifierKt --blueprint {id} --project test-{id}`
 
 ---
 
@@ -237,7 +215,7 @@ Templates live in `templates/{family}/main.tf` and `templates/{family}/variables
 1. **Rebuild the JAR** — templates are bundled at build time: `./gradlew shadowJar`
 2. **Run the verifier** against any blueprint using that family:
    ```bash
-   GENTEPEDE_MODE=LOCAL java -cp build/libs/gentepede-mcp-all.jar \
+   java -cp build/libs/gentepede-mcp-all.jar \
      com.gentepede.ci.BlueprintVerifierKt --blueprint springboot-postgres --project test
    ```
 3. **Security group descriptions** must match `^[0-9A-Za-z_ .:/()#,@\[\]+=&;{}!$*-]*$` — em dashes (`—`) are invalid and cause `terraform validate` to fail with the AWS provider.
@@ -252,7 +230,7 @@ The source Helm chart is in `helm-chart/`. After editing:
 1. Rebuild: `./gradlew shadowJar`
 2. Run a blueprint verifier on any EKS blueprint:
    ```bash
-   GENTEPEDE_MODE=LOCAL java -cp build/libs/gentepede-mcp-all.jar \
+   java -cp build/libs/gentepede-mcp-all.jar \
      com.gentepede.ci.BlueprintVerifierKt --blueprint springboot-eks --project test
    ```
 3. `kube-score` runs as part of `validateWorkspace` for TERRAFORM_K8S blueprints. Any `[CRITICAL]` finding will block. Run `audit_infrastructure_package` for the full report.
@@ -265,36 +243,34 @@ Four workflows protect the codebase. For a full plain-English explanation of eac
 
 ### ci.yml — Build, Test, Smoke Test, Blueprint Validate
 
-Triggers on every push to `main` and every pull request. Two sequential jobs:
+Triggers on every push to `main` and every pull request. Three jobs:
 
 **Job 1 — `build-and-test`:**
 1. `./gradlew build` — compile + unit tests (InfrastructureServiceTest, ValidatorTest, EngineTest). JaCoCo generates a coverage report as a test finalizer.
-2. Upload coverage report artifact (HTML + XML, retained 7 days; open via "Artifacts" on the run page).
-3. `./gradlew shadowJar` — build fat JAR.
-4. Upload fat JAR artifact for Job 2 to download.
-5. `python3 .github/scripts/mcp-smoke-test.py` — start the JAR, run `initialize` + `tools/list` via JSON-RPC, verify all 8 tools register (tests Main.kt + Engine.kt protocol layer; no Terraform or AWS needed).
-6. `lychee --offline` — check all internal file links in every `*.md` file; catches broken cross-references between doc files.
+2. Annotate test results — posts per-test pass/fail directly in the GitHub PR check run.
+3. Upload coverage report artifact (HTML + XML, retained 7 days).
+4. Coverage threshold check — fails if instruction coverage falls below 55%.
+5. `./gradlew shadowJar` — build fat JAR.
+6. Upload fat JAR artifact for Job 2 to download.
+7. `python3 .github/scripts/mcp-smoke-test.py` — start the JAR, run `initialize` + `tools/list` via NDJSON (MCP Kotlin SDK v0.13.x wire format), verify all 8 tools register.
+8. `lychee --offline` — check all internal file links in every `*.md` file.
 
 **Job 2 — `blueprint-validate` (runs after Job 1):**
 1. Download the fat JAR from Job 1.
 2. Install Terraform + checkov.
-3. For each of the 6 blueprints: `BlueprintVerifierKt` runs `generateWorkspace` + `validateWorkspace` (`terraform init` + `terraform validate` + checkov, no AWS calls).
+3. For each of the 6 blueprints: `BlueprintVerifierKt` runs `generateWorkspace` + `validateWorkspace` (`terraform init -backend=false` + `terraform validate` + checkov, no AWS credentials needed).
 
-Catches: compile errors, unit test failures, broken tool registration, template syntax errors, checkov regressions, broken internal doc links.
+**Job 3 — `submit-dependency-graph` (push only, runs after Job 1):**
+Submits the Gradle dependency graph to GitHub so `dependency-review.yml` can compare dependencies on PRs.
 
-### integration-local.yml — LocalStack End-to-End
+Catches: compile errors, unit test failures, coverage drops, broken tool registration, template syntax errors, checkov regressions, broken internal doc links.
 
-Triggers on every push to `main` and every pull request, **in parallel** with ci.yml.
+### lint.yml — Terraform, JSON Schema, YAML
 
-Starts **LocalStack Community** as a Docker service on port 4566, then runs `IntegrationVerifierKt` for the `ktor-dynamodb` blueprint:
-
-```
-generate → validate → plan → apply → detect_drift → audit → destroy
-```
-
-All resources in this blueprint (VPC, ALB, ECS, DynamoDB, KMS, IAM, CloudWatch) are supported by LocalStack Community (free). EKS, RDS, ElastiCache replication groups, and CloudFront OAC require LocalStack Pro and are only covered statically by the blueprint-validate job.
-
-Catches: regressions in the full tool flow that unit tests cannot detect (workspace wiring, providers.tf generation, Terraform state management, lock file integrity).
+Triggers on every push to `main` and every pull request. Three parallel jobs (independent of the build):
+- **`terraform`** — `terraform fmt -check` on templates/ + tflint with AWS ruleset on each template family.
+- **`blueprint-json`** — structural schema validation of all blueprint JSON files.
+- **`yaml`** — yamllint on all files under `.github/`.
 
 ### blueprint-verify.yml — Weekly Verification
 
@@ -303,6 +279,7 @@ Runs every Monday at 09:00 UTC. Can also be triggered manually via GitHub Action
 1. For each blueprint: `BlueprintVerifierKt` (`terraform validate` + checkov).
 2. On failure: opens a GitHub issue with reproduction command.
 3. On success: updates `lastVerifiedDate` in all blueprint JSONs and pushes the commit.
+4. External link check: `lychee` without `--offline` verifies all external URLs in docs.
 
 The `lastVerifiedDate` field in blueprint JSON is only updated by this weekly job, not by the on-merge jobs. This makes the timestamp meaningful: it records when the last scheduled verification ran against the pinned provider version, not when code last changed.
 

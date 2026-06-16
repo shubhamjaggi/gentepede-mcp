@@ -9,7 +9,7 @@ Gentepede implements shift-left by:
 2. Running checkov (static analysis) before any AWS API call is made
 3. Running kube-score (Kubernetes manifest analysis) before any pod is deployed
 4. Requiring plan review before apply (no `terraform apply -auto-approve` except in destroy)
-5. Requiring credential confirmation before any PRODUCTION AWS operation
+5. Requiring credential confirmation before any AWS operation that contacts AWS
 
 ---
 
@@ -85,7 +85,7 @@ kube-score analyses rendered Kubernetes manifests for security and reliability i
 
 ## Credential Pre-flight
 
-Before every PRODUCTION operation that contacts AWS:
+Before every operation that contacts AWS (`plan`, `apply`, `detect_drift`, `destroy`):
 ```bash
 aws sts get-caller-identity
 ```

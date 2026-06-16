@@ -13,7 +13,7 @@ An AWS service that distributes incoming HTTPS traffic across multiple backend s
 A cloud computing platform offering hundreds of managed services. Gentepede automates provisioning of a subset: ECS, EKS, Lambda, RDS, S3, DynamoDB, ElastiCache, CloudFront, ALB, VPC, IAM, KMS.
 
 **AWS CLI**
-The command-line interface for AWS. Gentepede calls it via ProcessBuilder to run `aws sts get-caller-identity` before production operations.
+The command-line interface for AWS. Gentepede calls it via ProcessBuilder to run `aws sts get-caller-identity` before operations that contact AWS (plan, apply, drift detection, destroy).
 
 ---
 
@@ -40,7 +40,7 @@ AWS's global content delivery network (CDN). Gentepede places CloudFront in fron
 A fully managed AWS NoSQL database. Unlike RDS, it has no server to provision — you pay per request. Gentepede provisions DynamoDB tables with encryption at rest and point-in-time recovery.
 
 **DynamoDB State Locking**
-In PRODUCTION mode, Terraform stores state in S3 and uses a DynamoDB table to prevent two concurrent `terraform apply` runs from corrupting the state file by acquiring a distributed lock.
+Terraform stores state in S3 and uses a DynamoDB table to prevent two concurrent `terraform apply` runs from corrupting the state file by acquiring a distributed lock.
 
 **Drift**
 A difference between the infrastructure described in Terraform state and the infrastructure that actually exists in AWS. Drift happens when someone changes infrastructure manually (via the console or CLI) without updating Terraform. `detect_drift` surfaces this.
@@ -93,14 +93,11 @@ A CLI tool that parses Terraform plan files and estimates the monthly AWS cost o
 ## J
 
 **JSON-RPC**
-A remote procedure call protocol that uses JSON for encoding. MCP uses JSON-RPC 2.0 over standard input/output. The MCP SDK handles all JSON-RPC framing; you never see raw Content-Length headers in Gentepede's code.
+A remote procedure call protocol that uses JSON for encoding. MCP uses JSON-RPC 2.0 over standard input/output. The MCP Kotlin SDK v0.13.0+ uses newline-delimited JSON (NDJSON) as the wire format — one JSON object per line, with no Content-Length headers. The SDK handles all framing; Gentepede code never reads or writes raw message boundaries.
 
 ---
 
 ## K
-
-**kind (Kubernetes IN Docker)**
-A tool for running local Kubernetes clusters using Docker containers as nodes. It is free and requires only Docker Desktop. Gentepede uses it for LOCAL mode EKS blueprint testing. The user creates the cluster manually (`kind create cluster --name gentepede-local`); Gentepede checks for it and aborts with instructions if not found.
 
 **KMS (Key Management Service)**
 AWS's managed encryption key service. Gentepede creates a per-project KMS key used to encrypt RDS databases, S3 buckets, ElastiCache clusters, CloudWatch logs, and Kubernetes secrets. Per-project keys allow independent auditing and revocation.
@@ -118,9 +115,6 @@ An open-source container orchestration platform. It manages where containers run
 **Lambda**
 AWS's serverless function execution environment. You upload code and AWS runs it in response to events (HTTP requests via API Gateway, S3 uploads, etc.) without any servers. The nodejs-s3 blueprint uses Lambda.
 
-**LocalStack**
-A locally-running emulator for AWS services. It implements the same HTTP APIs as real AWS, so Terraform plans run against it identically to production — but no AWS account or real money is needed. Run it via Docker.
-
 ---
 
 ## M
@@ -136,7 +130,7 @@ An open standard for connecting AI models (like Claude) to external tools and da
 The binary output of `terraform plan -out=gentepede.tfplan`. It captures exactly what Terraform will do at apply time, including all resource diffs. Applying from a plan file guarantees that the exact reviewed changes are applied — no drift from re-planning.
 
 **ProcessBuilder**
-The Java/Kotlin API for launching external processes. Gentepede uses it to run terraform, checkov, kube-score, helm, kind, infracost, and kubectl. Every call sets `.directory()` explicitly — never relying on the JVM's inherited working directory.
+The Java/Kotlin API for launching external processes. Gentepede uses it to run terraform, checkov, kube-score, helm, infracost, and kubectl. Every call sets `.directory()` explicitly — never relying on the JVM's inherited working directory.
 
 ---
 
@@ -146,14 +140,14 @@ The Java/Kotlin API for launching external processes. Gentepede uses it to run t
 AWS's managed relational database service. Gentepede provisions RDS PostgreSQL instances in private subnets with encryption at rest (KMS), automated backups, and no public accessibility.
 
 **Remote state backend**
-In PRODUCTION mode, Terraform state is stored in an S3 bucket with DynamoDB locking instead of a local `terraform.tfstate` file. This enables team collaboration and prevents concurrent applies from corrupting state.
+Terraform state is stored in an S3 bucket with DynamoDB locking instead of a local `terraform.tfstate` file. This enables team collaboration and prevents concurrent applies from corrupting state.
 
 ---
 
 ## S
 
 **S3 (Simple Storage Service)**
-AWS's object storage service. Used in Gentepede for: Lambda deployment packages (nodejs-s3), static assets (nodejs-eks), Terraform remote state (PRODUCTION), and VPC flow logs.
+AWS's object storage service. Used in Gentepede for: Lambda deployment packages (nodejs-s3), static assets (nodejs-eks), Terraform remote state, and VPC flow logs.
 
 **StdioServerTransport**
 The MCP transport that reads JSON-RPC messages from stdin and writes responses to stdout. This is the standard transport for MCP servers started via `java -jar` — the client process manages the server's stdin/stdout pipes.

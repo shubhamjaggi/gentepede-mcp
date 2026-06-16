@@ -1,7 +1,7 @@
 {
   "blueprintId": "nodejs-eks",
   "displayName": "Node.js + S3 (EKS + Helm + CloudFront)",
-  "description": "Deploys a Node.js application on Amazon EKS using Helm, with S3 for object storage, CloudFront as CDN, and ALB Ingress Controller for HTTPS. Generates both Terraform (cluster, S3, VPC) and a production-ready Helm chart. Supports local testing via kind.",
+  "description": "Deploys a Node.js application on Amazon EKS using Helm, with S3 for object storage, CloudFront as CDN, and ALB Ingress Controller for HTTPS. Generates both Terraform (cluster, S3, VPC) and a production-ready Helm chart.",
   "outputType": "TERRAFORM_K8S",
   "templateFamily": "eks",
   "terraformProviderVersion": "5.82.0",
@@ -69,7 +69,7 @@
     },
     {
       "name": "aws_profile",
-      "description": "AWS CLI profile name (PRODUCTION only)",
+      "description": "AWS CLI named profile",
       "type": "string",
       "default": "default",
       "required": false

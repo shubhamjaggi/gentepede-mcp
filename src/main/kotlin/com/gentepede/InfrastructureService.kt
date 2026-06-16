@@ -18,12 +18,12 @@ import java.util.concurrent.TimeUnit
  * Responsibilities:
  * - Load and parse blueprint JSON from the JAR classpath
  * - Create and manage workspaces under `~/.gentepede/workspaces/`
- * - Generate `providers.tf` at runtime for LOCAL or PRODUCTION mode
+ * - Generate `providers.tf` at runtime (real AWS provider + S3 remote state backend)
  * - Copy template families (ecs, lambda, eks) into the workspace
- * - Generate Helm `values.yaml` and `kind-config.yaml` for TERRAFORM_K8S blueprints
+ * - Generate Helm `values.yaml` for TERRAFORM_K8S blueprints
  * - Read and write `gentepede.lock.json`
  * - Create timestamped state backups before every apply or destroy
- * - Run external CLI tools (terraform, helm, checkov, kube-score, infracost, kind, kubectl)
+ * - Run external CLI tools (terraform, helm, checkov, kube-score, infracost, kubectl)
  *   via ProcessBuilder with stream gobbling and a 30-minute timeout
  *
  * Does NOT:
@@ -38,7 +38,6 @@ class InfrastructureService {
         isLenient = true
     }
 
-    private val mode: String = System.getenv("GENTEPEDE_MODE") ?: "LOCAL"
     private val homeDir: String = System.getProperty("user.home")
     private val gentepedeRoot = Paths.get(homeDir, ".gentepede")
     private val workspacesRoot = gentepedeRoot.resolve("workspaces")
@@ -97,7 +96,6 @@ class InfrastructureService {
      * For TERRAFORM_K8S blueprints the workspace has subdirectories:
      * - `terraform/` — all Terraform files
      * - `helm/` — the Helm chart with a generated `values.yaml`
-     * - `kind-config.yaml` in the workspace root
      *
      * @param blueprintId     slug identifying the blueprint to use
      * @param projectName     name used for workspace directories and resource names
@@ -119,9 +117,12 @@ class InfrastructureService {
         val warnings = mutableListOf<String>()
 
         // Detect existing state before overwriting
-        val tfStateFile = workspaceDir.resolve("terraform.tfstate")
-        val dotTerraformDir = workspaceDir.resolve(".terraform")
-        val tfVarsFile = workspaceDir.resolve("terraform.tfvars")
+        // Use resolveTerraformDir so state/tfvars paths are correct for both TERRAFORM_ONLY
+        // (workspace root) and TERRAFORM_K8S (terraform/ subdir, if it already exists).
+        val terraformDirForWarning = resolveTerraformDir(workspaceDir)
+        val tfStateFile = terraformDirForWarning.resolve("terraform.tfstate")
+        val dotTerraformDir = terraformDirForWarning.resolve(".terraform")
+        val tfVarsFile = terraformDirForWarning.resolve("terraform.tfvars")
 
         if (tfStateFile.toFile().exists() || dotTerraformDir.toFile().exists()) {
             val newVarsContent = buildTfvarsContent(blueprint, userVariables)
@@ -166,7 +167,6 @@ class InfrastructureService {
 
         return GenerateResult(
             workspacePath = workspaceDir.toString(),
-            mode = mode,
             outputType = blueprint.outputType,
             awsResources = blueprint.awsResources.map { it.type },
             nextStep = "Run validate_infrastructure_package to check Terraform syntax and security posture.",
@@ -202,21 +202,11 @@ class InfrastructureService {
         val helmValues = buildHelmValues(blueprint, projectName, userVariables)
         helmDir.resolve("values.yaml").toFile().writeText(helmValues)
 
-        // Generate kind-config.yaml in workspace root for local cluster creation
-        val kindConfig = buildKindConfig(projectName)
-        workspaceDir.resolve("kind-config.yaml").toFile().writeText(kindConfig)
-
         return GenerateResult(
             workspacePath = workspaceDir.toString(),
-            mode = mode,
             outputType = blueprint.outputType,
             awsResources = blueprint.awsResources.map { it.type },
-            nextStep = if (mode == "LOCAL") {
-                "Start kind cluster: kind create cluster --name gentepede-local --config ${workspaceDir}/kind-config.yaml\n" +
-                "Then run validate_infrastructure_package."
-            } else {
-                "Run validate_infrastructure_package to check Terraform syntax, checkov, and kube-score."
-            },
+            nextStep = "Run validate_infrastructure_package to check Terraform syntax, checkov, and kube-score.",
             warnings = warnings
         )
     }
@@ -243,9 +233,10 @@ class InfrastructureService {
 
         val terraformDir = resolveTerraformDir(workspaceDir)
 
-        // terraform init — required before validate; safe to run multiple times
+        // terraform init -backend=false — validate only needs the config parsed, not
+        // the S3 backend initialized, so this makes zero AWS API calls.
         runProcess(
-            listOf("terraform", "init", "-no-color"),
+            listOf("terraform", "init", "-backend=false", "-no-color"),
             directory = terraformDir.toFile(),
             allowedExitCodes = setOf(0)
         )
@@ -315,10 +306,8 @@ class InfrastructureService {
 
         val terraformDir = resolveTerraformDir(workspaceDir)
 
-        // PRODUCTION: confirm identity before any AWS API call
-        val callerIdentity = if (mode == "PRODUCTION") {
-            Validator.getCallerIdentity()
-        } else null
+        // Confirm identity before any AWS API call
+        val callerIdentity = Validator.getCallerIdentity()
 
         // terraform init (idempotent)
         runProcess(
@@ -405,13 +394,8 @@ class InfrastructureService {
 
         val terraformDir = resolveTerraformDir(workspaceDir)
 
-        // EKS LOCAL: confirm the kind cluster exists before deploying to it
-        preflightKindClusterIfLocalK8s(workspaceDir)
-
-        // PRODUCTION: confirm identity
-        val callerIdentity = if (mode == "PRODUCTION") {
-            Validator.getCallerIdentity()
-        } else null
+        // Confirm identity
+        val callerIdentity = Validator.getCallerIdentity()
 
         // Verify plan file checksum against lock file
         val lock = readLockFile(workspaceDir)
@@ -451,8 +435,7 @@ class InfrastructureService {
 
         // Helm deploy (TERRAFORM_K8S only)
         val helmOutput = if (workspaceDir.resolve("helm").toFile().exists()) {
-            val context = if (mode == "LOCAL") "--kube-context=kind-gentepede-local" else null
-            runHelmUpgrade(workspaceDir.toFile(), projectName, context)
+            runHelmUpgrade(workspaceDir.toFile(), projectName)
         } else null
 
         return ApplyResult(
@@ -475,8 +458,8 @@ class InfrastructureService {
      * For TERRAFORM_K8S blueprints, also runs `helm diff upgrade` (graceful skip if
      * the helm-diff plugin is not installed).
      *
-     * Drift detection is meaningful primarily in PRODUCTION. In LOCAL mode, LocalStack
-     * state is ephemeral — if Docker restarts, all resources appear as drift.
+     * Drift detection compares the Terraform state against real AWS resources, so it
+     * always requires valid AWS credentials.
      *
      * @param projectName the workspace to check for drift
      * @return [DriftReport] with Terraform and optional Kubernetes drift details
@@ -489,12 +472,7 @@ class InfrastructureService {
 
         val terraformDir = resolveTerraformDir(workspaceDir)
 
-        // EKS LOCAL: confirm the kind cluster exists before any cluster-targeting work
-        preflightKindClusterIfLocalK8s(workspaceDir)
-
-        val callerIdentity = if (mode == "PRODUCTION") {
-            Validator.getCallerIdentity()
-        } else null
+        val callerIdentity = Validator.getCallerIdentity()
 
         // terraform init if needed
         if (!terraformDir.resolve(".terraform").toFile().exists()) {
@@ -576,12 +554,7 @@ class InfrastructureService {
 
         val terraformDir = resolveTerraformDir(workspaceDir)
 
-        // EKS LOCAL: confirm the kind cluster exists before uninstalling from it
-        preflightKindClusterIfLocalK8s(workspaceDir)
-
-        val callerIdentity = if (mode == "PRODUCTION") {
-            Validator.getCallerIdentity()
-        } else null
+        val callerIdentity = Validator.getCallerIdentity()
 
         var helmOutput: String? = null
 
@@ -682,28 +655,6 @@ class InfrastructureService {
         return if (terraformSubdir.toFile().exists()) terraformSubdir else workspaceDir
     }
 
-    /**
-     * For EKS (TERRAFORM_K8S) workspaces in LOCAL mode, verifies the `gentepede-local`
-     * kind cluster exists before any operation that targets it (apply, drift, destroy).
-     *
-     * InfrastructureService never auto-creates the cluster — the user owns its lifecycle.
-     * Aborting here with setup instructions is clearer than letting helm/kubectl fail
-     * later with a cryptic "context not found" error. No-op in PRODUCTION mode and for
-     * TERRAFORM_ONLY workspaces (which have no `helm/` directory).
-     *
-     * @throws IllegalStateException if the cluster (or `kind` itself) is missing
-     */
-    private fun preflightKindClusterIfLocalK8s(workspaceDir: Path) {
-        val isK8s = workspaceDir.resolve("helm").toFile().exists()
-        if (mode == "LOCAL" && isK8s && !Validator.kindClusterExists()) {
-            throw IllegalStateException(
-                "kind cluster 'gentepede-local' not found.\n" +
-                "Run: kind create cluster --name gentepede-local\n" +
-                "Then re-run this tool."
-            )
-        }
-    }
-
     /** Copies `templates/{family}/` from the project classpath into [targetDir]. */
     private fun copyTemplateFamily(templateFamily: TemplateFamily, targetDir: Path) {
         val files = listOf("main.tf", "variables.tf")
@@ -791,12 +742,6 @@ class InfrastructureService {
         // only the data tier the blueprint actually asks for. Caller-supplied values win.
         injectDataTierToggles(blueprint, merged)
 
-        // LocalStack Community's ECS emulation never reports a steady-state deployment,
-        // so terraform apply would hang indefinitely waiting on it in LOCAL mode.
-        if (mode == "LOCAL" && blueprint.templateFamily == TemplateFamily.ecs) {
-            merged.putIfAbsent("ecs_wait_for_steady_state", JsonPrimitive(false))
-        }
-
         val sb = StringBuilder()
         sb.appendLine("# Generated by Gentepede MCP — do not edit manually")
         sb.appendLine("# Blueprint: ${blueprint.blueprintId}")
@@ -849,11 +794,9 @@ class InfrastructureService {
     }
 
     /**
-     * Generates `providers.tf` content at runtime based on [mode].
-     *
-     * LOCAL: LocalStack endpoints at http://localhost:4566.
-     * PRODUCTION: Standard AWS provider + S3 remote state backend with DynamoDB locking.
-     * The provider version comes from [blueprint.terraformProviderVersion] — never hardcoded.
+     * Generates `providers.tf` content at runtime: real AWS provider plus an S3 remote
+     * state backend with DynamoDB locking. The provider version comes from
+     * [blueprint.terraformProviderVersion] — never hardcoded.
      */
     internal fun buildProvidersContent(
         blueprint: Blueprint,
@@ -863,54 +806,11 @@ class InfrastructureService {
         val version = blueprint.terraformProviderVersion
         val region = (userVariables["aws_region"] as? JsonPrimitive)?.content ?: "us-east-1"
 
-        return if (mode == "LOCAL") {
-            """
-# providers.tf — LOCAL mode (generated by Gentepede MCP)
-# Routes all AWS API calls to LocalStack running at http://localhost:4566.
-# NEVER commit this file — it is regenerated at workspace creation time.
-
-terraform {
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "= $version"
-    }
-  }
-}
-
-provider "aws" {
-  region                      = var.aws_region
-  access_key                  = "test"
-  secret_key                  = "test"
-  skip_credentials_validation = true
-  skip_metadata_api_check     = true
-  skip_requesting_account_id  = true
-
-  endpoints {
-    s3          = "http://localhost:4566"
-    ec2         = "http://localhost:4566"
-    iam         = "http://localhost:4566"
-    rds         = "http://localhost:4566"
-    dynamodb    = "http://localhost:4566"
-    ecs         = "http://localhost:4566"
-    ecr         = "http://localhost:4566"
-    eks         = "http://localhost:4566"
-    elasticache = "http://localhost:4566"
-    kms         = "http://localhost:4566"
-    cloudwatch  = "http://localhost:4566"
-    lambda      = "http://localhost:4566"
-    apigateway  = "http://localhost:4566"
-    cloudfront  = "http://localhost:4566"
-    sts         = "http://localhost:4566"
-  }
-}
-""".trimIndent()
-        } else {
-            """
-# providers.tf — PRODUCTION mode (generated by Gentepede MCP)
+        return """
+# providers.tf (generated by Gentepede MCP)
 # Uses real AWS credentials from the environment or named profile.
 # The S3 backend and DynamoDB lock table must exist before first apply.
-# See docs/12-end-to-end-walkthrough.md Phase 7 for setup commands.
+# See docs/12-end-to-end-walkthrough.md Phase 3 for setup commands.
 
 terraform {
   required_providers {
@@ -934,7 +834,6 @@ provider "aws" {
   profile = var.aws_profile
 }
 """.trimIndent()
-        }
     }
 
     /**
@@ -1003,32 +902,6 @@ servicePort: 80
 projectName: "$projectName"
 environment: "$env"
 namespace: "$projectName"
-""".trimIndent()
-    }
-
-    /** Generates a `kind-config.yaml` for creating a local Kubernetes cluster. */
-    private fun buildKindConfig(projectName: String): String {
-        return """
-kind: Cluster
-apiVersion: kind.x-k8s.io/v1alpha4
-name: gentepede-local
-nodes:
-  - role: control-plane
-    kubeadmConfigPatches:
-      - |
-        kind: InitConfiguration
-        nodeRegistration:
-          kubeletExtraArgs:
-            node-labels: "ingress-ready=true"
-    extraPortMappings:
-      - containerPort: 80
-        hostPort: 8080
-        protocol: TCP
-      - containerPort: 443
-        hostPort: 8443
-        protocol: TCP
-  - role: worker
-  - role: worker
 """.trimIndent()
     }
 
@@ -1114,8 +987,10 @@ nodes:
                 ?.mapNotNull { it.jsonPrimitive.content } ?: continue
 
             val action = when {
-                "create" in actions -> "CREATE"
+                // REPLACE must be checked before CREATE: Terraform emits ["delete","create"]
+                // for in-place replacements, and "create" in actions would otherwise match first.
                 "delete" in actions && "create" in actions -> "REPLACE"
+                "create" in actions -> "CREATE"
                 "update" in actions -> "MODIFY"
                 "delete" in actions -> "DESTROY"
                 "no-op" in actions -> continue
@@ -1124,7 +999,10 @@ nodes:
             when (action) {
                 "CREATE" -> toCreate++
                 "MODIFY" -> toModify++
-                "DESTROY", "REPLACE" -> toDestroy++
+                "DESTROY" -> toDestroy++
+                // REPLACE destroys the old resource and creates a new one — counts in both buckets,
+                // matching Terraform's own "X to add, Y to destroy" summary for replaces.
+                "REPLACE" -> { toCreate++; toDestroy++ }
             }
             resources.add(PlannedResource(address, action))
         }
@@ -1172,20 +1050,13 @@ nodes:
         }
     }
 
-    /**
-     * Runs `helm upgrade --install` targeting the correct cluster.
-     *
-     * LOCAL: targets `kind-gentepede-local` kubeconfig context.
-     * PRODUCTION: targets the current KUBECONFIG context.
-     */
-    private fun runHelmUpgrade(workspaceDir: File, projectName: String, context: String?): String {
-        val cmd = mutableListOf(
+    /** Runs `helm upgrade --install`, targeting the current KUBECONFIG context. */
+    private fun runHelmUpgrade(workspaceDir: File, projectName: String): String {
+        val cmd = listOf(
             "helm", "upgrade", "--install", projectName, "helm/",
             "--namespace", projectName,
             "--create-namespace"
         )
-        if (context != null) cmd.add(context)
-
         val result = runProcess(cmd, directory = workspaceDir, allowedExitCodes = setOf(0))
         return result.stdout
     }

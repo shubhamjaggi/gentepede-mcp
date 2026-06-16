@@ -8,10 +8,12 @@ on:
 
 permissions:
   contents: read
+  # Required by mikepenz/action-junit-report to post test result check runs.
+  checks: write
 
 jobs:
   # ─────────────────────────────────────────────────────────────────────────────
-  # Job 1: Build, unit tests, MCP smoke test
+  # Job 1: Build, unit tests, coverage, MCP smoke test, link check
   # No Terraform or AWS needed — runs in under 3 minutes.
   # ─────────────────────────────────────────────────────────────────────────────
   build-and-test:
@@ -33,14 +35,57 @@ jobs:
       - name: Build and run unit tests
         run: ./gradlew build --no-daemon
 
+      # Annotate the PR/commit with per-test pass/fail status directly in the
+      # GitHub UI. Runs even when build fails so failing tests are visible.
+      - name: Annotate test results
+        uses: mikepenz/action-junit-report@v4
+        if: always()
+        with:
+          report_paths: 'build/test-results/test/*.xml'
+          check_name: 'Unit Test Results'
+          # The build step already fails the job on test failure; this step's
+          # job is only to annotate — not to re-fail.
+          fail_on_failure: false
+
       # JaCoCo generates XML + HTML coverage reports as a finalizer of the test task.
-      # The XML report is needed by the upload step; HTML is for human browsing.
       - name: Upload coverage report
         uses: actions/upload-artifact@v7
         with:
           name: coverage-report
           path: build/reports/jacoco/test/
           retention-days: 7
+
+      # Enforce a minimum instruction coverage threshold. Fails the build if
+      # coverage falls below the threshold, preventing uncovered regressions.
+      # To check current coverage: open the HTML report from the artifact above.
+      # To raise the threshold: update the `threshold` variable below.
+      - name: Check coverage threshold
+        run: |
+          python3 - <<'EOF'
+          import xml.etree.ElementTree as ET, sys
+
+          tree = ET.parse("build/reports/jacoco/test/jacocoTestReport.xml")
+          root = tree.getroot()
+          counter = next(
+              (c for c in root.findall("counter") if c.get("type") == "INSTRUCTION"),
+              None,
+          )
+          if counter is None:
+              print("WARNING: INSTRUCTION counter not found in JaCoCo report — skipping threshold check")
+              sys.exit(0)
+
+          missed = int(counter.get("missed"))
+          covered = int(counter.get("covered"))
+          total = missed + covered
+          pct = covered / total * 100 if total > 0 else 0.0
+
+          threshold = 55  # percent; raise this as test coverage improves
+          print(f"Instruction coverage: {pct:.1f}% ({covered}/{total} instructions covered)")
+          if pct < threshold:
+              print(f"FAIL: {pct:.1f}% is below the required threshold of {threshold}%")
+              sys.exit(1)
+          print(f"PASS: {pct:.1f}% meets the threshold of {threshold}%")
+          EOF
 
       - name: Build fat JAR
         run: ./gradlew shadowJar --no-daemon
@@ -59,7 +104,7 @@ jobs:
 
       # Check that all internal file links in Markdown docs resolve to real files.
       # Uses --offline to skip external URL checks (avoids rate-limit flakiness in CI).
-      # This catches broken cross-references between doc files as the repo evolves.
+      # External URLs are verified in the weekly blueprint-verify.yml run instead.
       - name: Check internal markdown links
         uses: lycheeverse/lychee-action@v2
         with:
@@ -108,8 +153,6 @@ jobs:
         run: pip install checkov
 
       - name: Validate all blueprints
-        env:
-          GENTEPEDE_MODE: LOCAL
         run: |
           set -e
           FAILED=""
@@ -127,3 +170,32 @@ jobs:
             exit 1
           fi
           echo "All blueprints validated successfully"
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Job 3: Submit Gradle dependency graph to GitHub
+  # Populates GitHub's dependency graph so the dependency-review.yml workflow
+  # can compare dependencies before and after each PR. Runs only on pushes to
+  # main (not on fork PRs, which lack write permission).
+  # ─────────────────────────────────────────────────────────────────────────────
+  submit-dependency-graph:
+    name: Submit Dependency Graph
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: build-and-test
+    if: github.event_name == 'push'
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v5
+        with:
+          java-version: "21"
+          distribution: "temurin"
+          cache: gradle
+
+      - name: Submit Gradle dependency graph
+        uses: gradle/actions/dependency-submission@v4

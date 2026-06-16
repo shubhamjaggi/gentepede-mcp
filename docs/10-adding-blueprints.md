@@ -92,19 +92,20 @@ blueprint.techStack.framework.contains("Go", ignoreCase = true) ->
 ### Step 5: Verify Locally
 
 ```bash
-# Start LocalStack
-docker run -d --name localstack -p 4566:4566 localstack/localstack
-
 # Build
 ./gradlew shadowJar
 
-# Test the blueprint via the test harness
-GENTEPEDE_MODE=LOCAL ./gradlew test --tests '*InfrastructureServiceTest*'
+# Run tests
+./gradlew test --tests '*InfrastructureServiceTest*'
+
+# Run the blueprint verifier (terraform validate + checkov, no AWS needed)
+java -cp build/libs/gentepede-mcp-all.jar \
+  com.gentepede.ci.BlueprintVerifierKt --blueprint go-dynamodb --project test-go
 ```
 
 ### Step 6: Verify End-to-End
 
-In Claude Desktop with `GENTEPEDE_MODE=LOCAL`:
+In Claude Desktop (with AWS credentials configured):
 1. `list_available_blueprints` — confirm `go-dynamodb` appears
 2. `generate_infrastructure_package blueprint_name="go-dynamodb" project_name="test-go" variables={...}`
 3. `validate_infrastructure_package project_name="test-go"`

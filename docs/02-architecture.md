@@ -16,7 +16,7 @@ Gentepede MCP Server (JVM process, gentepede-mcp-all.jar)
         ├── Reads blueprint JSON from JAR classpath
         ├── Creates workspace at ~/.gentepede/workspaces/{project}/
         ├── Writes Terraform files (main.tf, variables.tf, providers.tf, terraform.tfvars)
-        │   └── For EKS: also Helm chart + kind-config.yaml
+        │   └── For EKS: also Helm chart
         │
         └── When you run validate / plan / apply:
             ├── Spawns terraform CLI via ProcessBuilder
@@ -65,7 +65,7 @@ When you ask Claude "generate infrastructure for my Spring Boot app":
    - Creates `~/.gentepede/workspaces/my-api/`
    - Reads `templateFamily: "ecs"` → copies `templates/ecs/main.tf` and `variables.tf`
    - Builds `terraform.tfvars` from merged defaults + user variables
-   - Writes `providers.tf` (LocalStack endpoints in LOCAL mode)
+   - Writes `providers.tf` (real AWS provider + S3 remote state backend)
    - Returns a `GenerateResult`
 
 6. **Engine.kt** formats the `GenerateResult` as a human-readable string.
@@ -86,7 +86,7 @@ InfrastructureService.validateWorkspace("my-api")
     │
     ├── resolveTerraformDir() → ~/.gentepede/workspaces/my-api/ (TERRAFORM_ONLY)
     │
-    ├── runProcess(["terraform", "init", "-no-color"], directory=terraformDir)
+    ├── runProcess(["terraform", "init", "-backend=false", "-no-color"], directory=terraformDir)
     │      ├── ProcessBuilder starts subprocess
     │      ├── stdout thread: reads terraform's output into StringBuilder
     │      ├── stderr thread: reads terraform's errors into StringBuilder  ← separate threads
@@ -138,7 +138,7 @@ apply_infrastructure_package
 │   └── my-api/                        ← TERRAFORM_ONLY (springboot-postgres)
 │       ├── main.tf                    (copied from templates/ecs/)
 │       ├── variables.tf               (copied from templates/ecs/)
-│       ├── providers.tf               (written at runtime — LOCAL or PRODUCTION)
+│       ├── providers.tf               (written at runtime — real AWS provider + S3 backend)
 │       ├── terraform.tfvars           (merged blueprint defaults + user variables)
 │       ├── gentepede.lock.json        (plan checksum → apply integrity)
 │       ├── gentepede.tfplan           (binary plan file)
@@ -162,7 +162,6 @@ apply_infrastructure_package
 │       │       ├── hpa.yaml
 │       │       ├── network-policy.yaml
 │       │       └── resource-quota.yaml
-│       ├── kind-config.yaml           (for local cluster creation)
 │       └── gentepede.lock.json
 │
 └── backups/

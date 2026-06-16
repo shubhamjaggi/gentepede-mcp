@@ -17,7 +17,7 @@ cd gentepede-mcp
 ./gradlew shadowJar  # builds build/libs/gentepede-mcp-all.jar
 ```
 
-Requirements: **Java 21**. The external CLIs (terraform, checkov, helm, kind,
+Requirements: **Java 21**. The external CLIs (terraform, checkov, helm,
 kube-score, infracost, kubectl) are only needed at runtime — the unit tests run
 without them (they gracefully skip when a binary is absent). See the
 [README prerequisites](README.md#prerequisites) for install links.

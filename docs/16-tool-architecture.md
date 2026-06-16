@@ -20,7 +20,7 @@ When you generate infrastructure for a project called `my-api`, Gentepede create
 
 ### 3. Everything runs locally on your machine
 
-Gentepede doesn't have a server in the cloud. It runs as a Java process on your machine. When it runs `terraform plan`, that's a real `terraform` binary on your machine talking to AWS (or to LocalStack, a fake AWS running in Docker, when you're in LOCAL mode). No Gentepede code ever runs on AWS.
+Gentepede doesn't have a server in the cloud. It runs as a Java process on your machine. When it runs `terraform plan`, that's a real `terraform` binary on your machine talking to real AWS. No Gentepede code ever runs on AWS.
 
 ### 4. The JAR is self-contained
 
@@ -60,7 +60,7 @@ InfrastructureService.kt does the real work:
   - Creates ~/.gentepede/workspaces/my-api/
   - Copies main.tf and variables.tf from the JAR templates
   - Writes terraform.tfvars with enable_rds=true, enable_dynamodb=false
-  - Writes providers.tf pointing to LocalStack or real AWS
+  - Writes providers.tf pointing to real AWS with an S3 remote state backend
                 │
                 ▼
 Engine.kt formats the result as a human-readable string
@@ -116,7 +116,6 @@ That's the whole loop. Now let's go layer by layer.
 │  Pipes Helm output to kube-score and parses the results.                │
 │  Parses infracost's cost estimate JSON.                                 │
 │  Checks AWS credentials via `aws sts get-caller-identity`.              │
-│  Checks kind cluster existence for local EKS testing.                  │
 └────────────────────────────┬────────────────────────────────────────────┘
                              │ Subprocess invocations
                              ▼
@@ -127,16 +126,14 @@ That's the whole loop. Now let's go layer by layer.
 │  helm       — Kubernetes package management                             │
 │  kube-score — Kubernetes manifest quality checks                        │
 │  infracost  — monthly cost estimation                                   │
-│  kind       — local Kubernetes cluster management                       │
 │  kubectl    — wait for pods to terminate (destroy sequence)             │
-│  aws        — verify AWS credentials before production operations       │
+│  aws        — verify AWS credentials before any cloud-touching op       │
 └────────────────────────────┬────────────────────────────────────────────┘
                              │ API calls (HTTP)
                              ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
-│  LAYER 7 — AWS or LocalStack                                            │
-│  LOCAL mode:      LocalStack running in Docker at localhost:4566        │
-│  PRODUCTION mode: Real AWS cloud endpoints                              │
+│  LAYER 7 — Real AWS                                                     │
+│  Real AWS cloud endpoints, with Terraform state in S3 + DynamoDB.       │
 │  Note: generate and validate never reach this layer (no cloud calls)   │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
@@ -168,19 +165,17 @@ java -jar gentepede-mcp-all.jar
 
 From that point, they communicate by sending text messages through the process's stdin and stdout pipes — exactly like how you'd pipe output between shell commands, but for a structured protocol called **JSON-RPC 2.0**.
 
-Every message is framed with a Content-Length header (similar to HTTP headers) followed by a JSON body:
+Every message is a single JSON object followed by a newline character — one line per message (newline-delimited JSON, NDJSON). No `Content-Length` header, no blank-line separator:
 
 ```
-Content-Length: 135\r\n
-\r\n
 {"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"validate_infrastructure_package","arguments":{"project_name":"my-api"}}}
 ```
 
 The MCP SDK (the Kotlin library Gentepede uses) handles all of this automatically:
-- It reads the `Content-Length` header to know how many bytes to read
+- It reads lines from stdin, one JSON object per line
 - It parses the JSON and figures out what kind of message it is (`tools/call`, `tools/list`, etc.)
 - It routes `tools/call` messages to the handler registered in `Main.kt`
-- It serializes the response back to JSON and writes it with the correct headers
+- It serializes the response back to a single-line JSON object and writes it to stdout
 
 **Main.kt's only job:** Register the 8 tools with their names, descriptions, and input schemas, then start the server. The tool descriptions are what Claude reads to understand what each tool does.
 
@@ -230,7 +225,7 @@ InfrastructureService can be called directly from tests and from the CI blueprin
 
 **Error handling:**
 - `IllegalArgumentException` → bad user input (e.g., unknown blueprint name). Engine.kt catches this and returns it as an error message to Claude.
-- `IllegalStateException` → a precondition failed (e.g., workspace not found, kind cluster not running). Same handling.
+- `IllegalStateException` → a precondition failed (e.g., workspace not found). Same handling.
 - `ProcessExecutionException` → a CLI tool failed (terraform, checkov, etc.). Engine.kt includes the full stdout/stderr in the error so Claude can see exactly what went wrong.
 
 ---
@@ -270,14 +265,6 @@ Key behaviors of every subprocess call:
 - **Allowed exit codes** are checked — some tools use non-zero exit codes for normal results (checkov uses exit 1 to mean "findings found"), so unexpected codes throw `ProcessExecutionException`.
 - **No shell** — commands are literal argument lists, not shell strings. Explained in full in the "ProcessBuilder: No Shell" section below.
 
-### Mode detection
-
-```kotlin
-private val mode: String = System.getenv("GENTEPEDE_MODE") ?: "LOCAL"
-```
-
-Every LOCAL vs PRODUCTION branch in the code traces back to this one line.
-
 ---
 
 ## Layer 5 — Validator.kt: CLI Output Parser and Orchestrator
@@ -291,9 +278,8 @@ Validator.kt both runs certain external tools and parses their output. Most proc
 | **infracost cost estimate** | Reads `gentepede-plan.json`. Parses `totalMonthlyCost` and `currency` from infracost's JSON output. |
 | **AWS credential check** | Runs `aws sts get-caller-identity`, parses the JSON for Arn, Account, UserId. |
 | **Helm drift detection** | Runs `helm diff upgrade`, checks if stderr says "plugin not found" (graceful skip if not installed). |
-| **kind cluster check** | Runs `kind get clusters`, checks if `gentepede-local` appears in the output. |
 
-**Graceful skips:** If checkov, infracost, kube-score, helm-diff, or kind are not installed, Validator returns a "skipped" result rather than throwing an error. The tool call still succeeds. This means Gentepede works on a minimal machine with only `terraform` installed.
+**Graceful skips:** If checkov, infracost, kube-score, or helm-diff are not installed, Validator returns a "skipped" result rather than throwing an error. The tool call still succeeds. This means Gentepede works on a minimal machine with only `terraform` installed.
 
 ---
 
@@ -307,7 +293,7 @@ This is the folder on your disk that holds everything Terraform needs.
 ├── main.tf                 ← copied from JAR: templates/ecs/main.tf
 ├── variables.tf            ← copied from JAR: templates/ecs/variables.tf
 ├── terraform.tfvars        ← generated: project_name, image, enable_rds, etc.
-├── providers.tf            ← generated: LocalStack endpoints OR real AWS + S3 backend
+├── providers.tf            ← generated: real AWS provider + S3 remote state backend
 │
 ├── .terraform/             ← created by terraform init (provider plugin binaries)
 ├── .terraform.lock.hcl     ← provider version pinfile (created by terraform init)
@@ -342,7 +328,6 @@ This is the folder on your disk that holds everything Terraform needs.
 │       ├── network-policy.yaml
 │       └── resource-quota.yaml
 │
-├── kind-config.yaml        ← local cluster spec (used with: kind create cluster --config kind-config.yaml)
 └── gentepede.lock.json
 ```
 
@@ -409,9 +394,7 @@ This is the folder on your disk that holds everything Terraform needs.
    fastapi-redis       → enable_rds=false, enable_dynamodb=false, enable_redis=true
    ```
 
-   c. Builds `providers.tf`:
-   - LOCAL mode → AWS provider pointing to `http://localhost:4566` (LocalStack), no S3 backend
-   - PRODUCTION mode → standard AWS provider with real endpoints, adds S3 backend block for remote state
+   c. Builds `providers.tf`: standard AWS provider with real endpoints, plus an S3 backend block (with DynamoDB locking) for remote state
 
    **For TERRAFORM_K8S (EKS blueprints):** Same steps a–c but files go into the `terraform/` subdirectory. Then additionally:
 
@@ -419,19 +402,17 @@ This is the folder on your disk that holds everything Terraform needs.
 
    e. Overwrites `helm/values.yaml` with project-specific values: container image, port (8080 for Spring Boot, 3000 for Node.js), health probe paths (`/actuator/health` for Spring Boot), replica count, resource limits
 
-   f. Generates `kind-config.yaml` (a local Kubernetes cluster spec with 1 control-plane + 2 worker nodes)
-
-6. Returns the result including the workspace path, mode, output type, and list of AWS resources that will be created
+6. Returns the result including the workspace path, output type, and list of AWS resources that will be created
 
 **Key design decision — why `providers.tf` is generated at runtime:**
-The same `main.tf` must work with both LocalStack and real AWS. The only difference between LOCAL and PRODUCTION is `providers.tf` (endpoint URLs, backend config). By generating it at runtime, there's one copy of each template family instead of two nearly-identical copies.
+The provider version comes from the blueprint's `terraformProviderVersion` field, not a hardcoded constant. By generating `providers.tf` at runtime instead of checking it into each template family, every blueprint always gets a backend wired up consistently — the bucket and lock table names derive from the project name — without maintaining a near-duplicate file per template.
 
 **Quick reference:**
 
 | | |
 |---|---|
 | Files read | Blueprint JSON from JAR |
-| Files written | `main.tf`, `variables.tf`, `terraform.tfvars`, `providers.tf`, plus (EKS) `helm/*`, `kind-config.yaml` |
+| Files written | `main.tf`, `variables.tf`, `terraform.tfvars`, `providers.tf`, plus (EKS) `helm/*` |
 | CLI tools run | None |
 | AWS calls | None |
 
@@ -449,7 +430,7 @@ The same `main.tf` must work with both LocalStack and real AWS. The only differe
    - TERRAFORM_ONLY: `~/.gentepede/workspaces/my-api/`
    - TERRAFORM_K8S: `~/.gentepede/workspaces/my-api/terraform/`
 
-3. **Runs `terraform init`**: Downloads the AWS provider plugin (or the LocalStack provider in LOCAL mode) into `.terraform/`. This is safe to run multiple times — it's idempotent. The first run takes ~30 seconds; subsequent runs are instant (plugins are cached).
+3. **Runs `terraform init -backend=false`**: Downloads the AWS provider plugin into `.terraform/` without configuring the S3 backend — validate only needs the config parsed, not the backend initialized, so this keeps validate credential-free even though `providers.tf` always declares a real backend. This is safe to run multiple times — it's idempotent. The first run takes ~30 seconds; subsequent runs are instant (plugins are cached).
 
 4. **Runs `terraform validate`**: Checks that the HCL syntax is valid and that resource argument types are correct. Makes zero AWS API calls — purely local analysis. Fails fast if there's a typo in `main.tf` or a variable reference that doesn't exist.
 
@@ -475,24 +456,24 @@ The same `main.tf` must work with both LocalStack and real AWS. The only differe
 |---|---|
 | Files read | `main.tf`, `variables.tf`, `terraform.tfvars`, `providers.tf`, `helm/values.yaml`, `helm/templates/*` |
 | Files written | `.terraform/` directory (provider plugins), `.terraform.lock.hcl` (version lockfile) |
-| CLI tools run | `terraform init`, `terraform validate`, `checkov -d . -o json --compact`, `helm template`, `kube-score score -` |
+| CLI tools run | `terraform init -backend=false`, `terraform validate`, `checkov -d . -o json --compact`, `helm template`, `kube-score score -` |
 | AWS calls | None — terraform validate is purely local |
 
 ---
 
 ### Tool 4: `plan_infrastructure_package`
 
-**In plain English:** This is the first tool that contacts AWS (or LocalStack). Terraform compares your desired configuration against what actually exists in AWS and produces a plan: "I will create 14 resources, modify 0, destroy 0." Gentepede captures this plan file, computes a checksum of it (for integrity), estimates costs, and returns everything for your review. **Review the plan before running apply.**
+**In plain English:** This is the first tool that contacts AWS. Terraform compares your desired configuration against what actually exists in AWS and produces a plan: "I will create 14 resources, modify 0, destroy 0." Gentepede captures this plan file, computes a checksum of it (for integrity), estimates costs, and returns everything for your review. **Review the plan before running apply.**
 
 **Step-by-step:**
 
 1. Checks workspace exists
 
-2. **Credential pre-flight (PRODUCTION only):** Runs `aws sts get-caller-identity` to verify AWS credentials are configured and valid. If this fails, stops immediately with instructions for setting up credentials. This check runs *before* any Terraform commands so a credential problem produces a clear message rather than a cryptic Terraform error.
+2. **Credential pre-flight:** Runs `aws sts get-caller-identity` to verify AWS credentials are configured and valid. If this fails, stops immediately with instructions for setting up credentials. This check runs *before* any Terraform commands so a credential problem produces a clear message rather than a cryptic Terraform error.
 
 3. Runs `terraform init` (idempotent — safe to run again)
 
-4. **Runs `terraform plan -out=gentepede.tfplan`:** Terraform contacts AWS (or LocalStack) to read the current state of all resources, compares that against what your `.tf` files declare, and computes the difference. The result is saved as a binary plan file at `gentepede.tfplan`. This can take 2–5 minutes for large infrastructures.
+4. **Runs `terraform plan -out=gentepede.tfplan`:** Terraform contacts AWS to read the current state of all resources, compares that against what your `.tf` files declare, and computes the difference. The result is saved as a binary plan file at `gentepede.tfplan`. This can take 2–5 minutes for large infrastructures.
 
 5. **Runs `terraform show -json gentepede.tfplan`:** Converts the binary plan file into JSON so Gentepede can read it programmatically. The JSON output is captured from stdout and written to `gentepede-plan.json` via a FileOutputStream (not via a shell `>` redirect — more on this in the ProcessBuilder section below).
 
@@ -535,25 +516,23 @@ The same `main.tf` must work with both LocalStack and real AWS. The only differe
 
 1. Checks workspace exists
 
-2. **EKS LOCAL pre-flight:** For EKS blueprints in LOCAL mode, checks that the `gentepede-local` kind cluster is running (`kind get clusters`). If it's not running, stops with instructions on how to create it. There's no point applying EKS infrastructure if there's no local Kubernetes cluster to deploy pods to.
+2. **Credential pre-flight:** Same `aws sts get-caller-identity` check as plan.
 
-3. **Credential pre-flight (PRODUCTION only):** Same `aws sts get-caller-identity` check as plan.
+3. **Reads `gentepede.lock.json`:** If the lock file doesn't exist, it means `plan` was never run — stops with "No valid plan file found. Run plan_infrastructure_package first."
 
-4. **Reads `gentepede.lock.json`:** If the lock file doesn't exist, it means `plan` was never run — stops with "No valid plan file found. Run plan_infrastructure_package first."
-
-5. **Verifies the plan file checksum:**
+4. **Verifies the plan file checksum:**
    - Reads `gentepede.tfplan` from disk
    - Computes its SHA-256 hash
    - Compares to the `planFileChecksum` stored in `gentepede.lock.json`
    - **If they don't match:** stops and explains why. This prevents applying a stale plan. Common causes: you ran `generate` again after planning (which rewrote `terraform.tfvars`), or someone manually edited the files.
 
-6. **Backs up the current state file:**
+5. **Backs up the current state file:**
    - Copies `terraform.tfstate` → `~/.gentepede/backups/my-api/2026-06-14T10-30-00Z.tfstate`
    - If no state file exists yet (first apply): backup step is a no-op
 
-7. **Runs `terraform apply gentepede.tfplan`:** Applies the exact plan that was reviewed — Terraform does not re-plan. This is the command that creates real AWS resources (or LocalStack resources). Can take 5–25 minutes depending on the blueprint (EKS clusters take the longest).
+6. **Runs `terraform apply gentepede.tfplan`:** Applies the exact plan that was reviewed — Terraform does not re-plan. This is the command that creates real AWS resources. Can take 5–25 minutes depending on the blueprint (EKS clusters take the longest).
 
-8. **Updates `gentepede.lock.json`** (Phase 2 — adds apply info):
+7. **Updates `gentepede.lock.json`** (Phase 2 — adds apply info):
    ```json
    {
      "blueprintId": "springboot-postgres",
@@ -565,13 +544,13 @@ The same `main.tf` must work with both LocalStack and real AWS. The only differe
    }
    ```
 
-9. **Helm deploy (EKS blueprints only):**
-   - Determines the Kubernetes context: `kind-gentepede-local` in LOCAL mode, current `~/.kube/config` context in PRODUCTION
+8. **Helm deploy (EKS blueprints only):**
+   - Targets the current `~/.kube/config` context
    - Runs `helm upgrade --install my-api helm/ -f helm/values.yaml --namespace my-api --create-namespace`
    - This deploys the Deployment, Service, HPA, NetworkPolicy, and ResourceQuota to the cluster
    - Creates the namespace if it doesn't exist
 
-10. Returns the apply output (capped at 3000 characters to avoid response overflow) plus Helm deploy output
+9. Returns the apply output (capped at 3000 characters to avoid response overflow) plus Helm deploy output
 
 **Why `terraform apply gentepede.tfplan` and not `terraform apply -auto-approve`:**
 Using the plan file means Terraform applies *exactly* the changes you reviewed — no re-planning at apply time. `terraform apply -auto-approve` without a plan file would re-plan and could apply changes that happened after your review.
@@ -582,8 +561,8 @@ Using the plan file means Terraform applies *exactly* the changes you reviewed �
 |---|---|
 | Files read | `gentepede.lock.json`, `gentepede.tfplan` |
 | Files written | `terraform.tfstate`, `gentepede.lock.json` (updated), `~/.gentepede/backups/my-api/{timestamp}.tfstate` |
-| CLI tools run | `kind get clusters`, `aws sts get-caller-identity`, `terraform apply`, `helm upgrade --install` |
-| AWS calls | Yes — creates/modifies real AWS resources (or LocalStack) |
+| CLI tools run | `aws sts get-caller-identity`, `terraform apply`, `helm upgrade --install` |
+| AWS calls | Yes — creates/modifies real AWS resources |
 
 ---
 
@@ -595,26 +574,22 @@ Using the plan file means Terraform applies *exactly* the changes you reviewed �
 
 1. Checks workspace exists
 
-2. EKS LOCAL pre-flight (kind cluster check)
+2. **Credential pre-flight:** Runs `aws sts get-caller-identity` to verify credentials before contacting AWS.
 
-3. Credential pre-flight (PRODUCTION only)
+3. Runs `terraform init` if `.terraform/` doesn't exist
 
-4. Runs `terraform init` if `.terraform/` doesn't exist
-
-5. **Runs `terraform plan -detailed-exitcode`:** The `-detailed-exitcode` flag changes what the exit code means:
+4. **Runs `terraform plan -detailed-exitcode`:** The `-detailed-exitcode` flag changes what the exit code means:
    - Exit `0` = no changes (no drift)
    - Exit `1` = terraform error (something went wrong)
    - Exit `2` = changes exist (drift detected)
 
    Gentepede allows exit codes `{0, 2}` — exit 2 is not treated as an error, it's how Terraform signals drift.
 
-6. **If drift was detected (exit 2):** Runs `terraform show -json gentepede-drift.tfplan` and parses `resource_changes[]` to show exactly which resources changed and how.
+5. **If drift was detected (exit 2):** Runs `terraform show -json gentepede-drift.tfplan` and parses `resource_changes[]` to show exactly which resources changed and how.
 
-7. **Kubernetes drift check (EKS blueprints only):** Runs `helm diff upgrade my-api helm/ -f helm/values.yaml --namespace my-api`. This compares the currently deployed release against your local Helm values and shows any differences. Skipped gracefully if the helm-diff plugin isn't installed.
+6. **Kubernetes drift check (EKS blueprints only):** Runs `helm diff upgrade my-api helm/ -f helm/values.yaml --namespace my-api`. This compares the currently deployed release against your local Helm values and shows any differences. Skipped gracefully if the helm-diff plugin isn't installed.
 
-8. Returns the drift report with a recommendation ("No action required" or "Run plan_infrastructure_package to see the full plan for reverting drift")
-
-**Important note about LOCAL mode:** LocalStack stores all state in memory inside the Docker container. If Docker restarts, all resources are gone — but `terraform.tfstate` still thinks they exist. In LOCAL mode, every resource will show as drift after a Docker restart. This is expected behavior. Drift detection is only meaningful in PRODUCTION.
+7. Returns the drift report with a recommendation ("No action required" or "Run plan_infrastructure_package to see the full plan for reverting drift")
 
 **Quick reference:**
 
@@ -635,23 +610,21 @@ Using the plan file means Terraform applies *exactly* the changes you reviewed �
 
 1. Checks workspace exists
 
-2. EKS LOCAL pre-flight (kind cluster check)
+2. **Credential pre-flight:** Runs `aws sts get-caller-identity` to verify credentials.
 
-3. Credential pre-flight (PRODUCTION only)
+3. **Helm uninstall (EKS blueprints only):** Runs `helm uninstall my-api --namespace my-api`. This tells Kubernetes to delete all the pods, services, and other resources that Helm deployed. Exit codes `{0, 1}` are allowed — exit 1 means the release wasn't found (already deleted), which is fine.
 
-4. **Helm uninstall (EKS blueprints only):** Runs `helm uninstall my-api --namespace my-api`. This tells Kubernetes to delete all the pods, services, and other resources that Helm deployed. Exit codes `{0, 1}` are allowed — exit 1 means the release wasn't found (already deleted), which is fine.
-
-5. **Wait for pods to terminate (EKS blueprints only):** Runs `kubectl wait --for=delete pod --all -n my-api --timeout=300s`. Blocks until all pods in the namespace are gone (up to 5 minutes). Exit codes `{0, 1}` are allowed — exit 1 means no pods were found (already gone).
+4. **Wait for pods to terminate (EKS blueprints only):** Runs `kubectl wait --for=delete pod --all -n my-api --timeout=300s`. Blocks until all pods in the namespace are gone (up to 5 minutes). Exit codes `{0, 1}` are allowed — exit 1 means no pods were found (already gone).
 
    **Why this wait is required:** Terraform cannot delete an EKS node group while pods are still running on the worker nodes. The EKS node group is an EC2 Auto Scaling Group. EC2 won't terminate instances that have pods scheduled on them without going through Kubernetes drain procedures first. Helm uninstall starts the termination; `kubectl wait` ensures it's complete before Terraform proceeds.
 
-6. **Backs up the current state file** to `~/.gentepede/backups/my-api/{timestamp}.tfstate`
+5. **Backs up the current state file** to `~/.gentepede/backups/my-api/{timestamp}.tfstate`
 
-7. **Runs `terraform destroy -auto-approve`:** Deletes all resources tracked in `terraform.tfstate`. The `-auto-approve` flag skips the interactive confirmation prompt — the user already confirmed by calling this tool. Can take 5–15 minutes.
+6. **Runs `terraform destroy -auto-approve`:** Deletes all resources tracked in `terraform.tfstate`. The `-auto-approve` flag skips the interactive confirmation prompt — the user already confirmed by calling this tool. Can take 5–15 minutes.
 
-8. **Deletes the workspace directory** (`~/.gentepede/workspaces/my-api/` and everything inside it). **Does NOT delete backups** — those live at `~/.gentepede/backups/my-api/` and are retained forever.
+7. **Deletes the workspace directory** (`~/.gentepede/workspaces/my-api/` and everything inside it). **Does NOT delete backups** — those live at `~/.gentepede/backups/my-api/` and are retained forever.
 
-9. Returns the destroy output and the backup path
+8. Returns the destroy output and the backup path
 
 **Quick reference:**
 
@@ -661,7 +634,7 @@ Using the plan file means Terraform applies *exactly* the changes you reviewed �
 | Files written | `~/.gentepede/backups/my-api/{timestamp}.tfstate` |
 | Files deleted | Entire workspace directory |
 | CLI tools run | `helm uninstall`, `kubectl wait --for=delete pod`, `terraform destroy -auto-approve` |
-| AWS calls | Yes — deletes real AWS resources (or LocalStack) |
+| AWS calls | Yes — deletes real AWS resources |
 
 ---
 
@@ -751,23 +724,6 @@ The solution: start two goroutine-like threads immediately after launching the s
 
 ---
 
-### LOCAL vs PRODUCTION: Per-Tool Differences
-
-| Tool | LOCAL mode | PRODUCTION mode |
-|---|---|---|
-| `list_blueprints` | Identical — reads from JAR | Identical — reads from JAR |
-| `generate` | `providers.tf` → LocalStack endpoint, no S3 backend | `providers.tf` → real AWS endpoints + S3 backend for remote state |
-| `validate` | Identical — pure static analysis, no cloud contact | Identical — pure static analysis, no cloud contact |
-| `plan` | No credential pre-flight. Terraform contacts LocalStack. | Credential pre-flight runs first. Terraform contacts real AWS. |
-| `apply` | EKS: targets kind cluster. Terraform applies to LocalStack. | EKS: targets real EKS. Terraform applies to real AWS. |
-| `detect_drift` | LocalStack state is ephemeral — drift expected after Docker restart. | Meaningful — reflects actual AWS state. |
-| `destroy` | Destroys LocalStack resources + (EKS) kind cluster resources. | Destroys real AWS resources. |
-| `audit` | Identical — pure static analysis | Identical — pure static analysis |
-
-The mode switch is a single environment variable: `GENTEPEDE_MODE=LOCAL` or `GENTEPEDE_MODE=PRODUCTION`. All branching in the code traces back to `private val mode = System.getenv("GENTEPEDE_MODE") ?: "LOCAL"` in InfrastructureService.kt.
-
----
-
 ### The Helm Chart Pipeline for EKS Blueprints
 
 The Helm chart bundled in the JAR goes through several transformations before it reaches a Kubernetes cluster:
@@ -816,7 +772,7 @@ Step 5 — destroy:
 
 ## Summary: A Full Deployment from Start to Finish
 
-Here's every external command and file operation in order for a complete `springboot-postgres` deployment in PRODUCTION mode:
+Here's every external command and file operation in order for a complete `springboot-postgres` deployment:
 
 ```
 1. list_available_blueprints
@@ -838,9 +794,9 @@ Here's every external command and file operation in order for a complete `spring
 3. validate_infrastructure_package(my-api)
    Write: .terraform/  (provider plugin download, ~30s first run)
           .terraform.lock.hcl
-   Run:  terraform init      (~30s first time, instant after)
-         terraform validate  (~2s, zero AWS calls)
-         checkov             (~10s, zero AWS calls)
+   Run:  terraform init -backend=false  (~30s first time, instant after)
+         terraform validate             (~2s, zero AWS calls)
+         checkov                        (~10s, zero AWS calls)
    AWS:  (none)
 
 4. plan_infrastructure_package(my-api)
@@ -868,11 +824,13 @@ Here's every external command and file operation in order for a complete `spring
          CloudWatch log groups, S3 bucket (flow logs), VPC flow logs
 
 7. detect_drift(my-api)         [run any time after apply]
-   Run:  terraform plan -detailed-exitcode (~2–5 min)
+   Run:  aws sts get-caller-identity          (credential check)
+         terraform plan -detailed-exitcode    (~2–5 min)
    AWS:  terraform plan reads current AWS state and compares to terraform.tfstate
 
 8. destroy_infrastructure_package(my-api)
-   Run:  terraform destroy -auto-approve (~5–15 min, deletes all resources)
+   Run:  aws sts get-caller-identity          (credential check)
+         terraform destroy -auto-approve      (~5–15 min, deletes all resources)
    Write: ~/.gentepede/backups/my-api/{timestamp}.tfstate (pre-destroy backup)
    Delete: ~/.gentepede/workspaces/my-api/ (entire directory)
    Retain: ~/.gentepede/backups/my-api/ (backups kept forever)

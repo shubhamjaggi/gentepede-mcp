@@ -31,9 +31,9 @@ object Validator {
     /**
      * Runs `aws sts get-caller-identity` and parses the JSON response.
      *
-     * Called before every PRODUCTION operation that contacts AWS (plan, apply,
-     * drift detection, destroy). If this call fails, the calling tool aborts
-     * immediately — never proceed to Terraform without confirmed identity.
+     * Called before every operation that contacts AWS (plan, apply, drift detection,
+     * destroy). If this call fails, the calling tool aborts immediately — never
+     * proceed to Terraform without confirmed identity.
      *
      * @return [CallerIdentity] with ARN, account ID, and user ID
      * @throws ProcessExecutionException if `aws sts get-caller-identity` fails
@@ -414,36 +414,6 @@ object Validator {
             } else {
                 HelmDiffResult(diff = "helm diff failed: ${e.stderr}", skipped = false)
             }
-        }
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // KIND PRE-FLIGHT
-    // ─────────────────────────────────────────────────────────────────────────
-
-    /**
-     * Checks whether the `gentepede-local` kind cluster exists.
-     *
-     * InfrastructureService calls this before any EKS LOCAL operation that targets the
-     * cluster (apply, drift, destroy). If the cluster is missing, the caller aborts with
-     * setup instructions rather than auto-creating it — this keeps cluster lifecycle in
-     * the user's hands and avoids a cryptic "context not found" failure later in helm.
-     * Returns false (never throws) when `kind` is not installed, so it is safe to call
-     * unconditionally.
-     *
-     * @return true if the cluster exists, false otherwise
-     */
-    fun kindClusterExists(): Boolean {
-        if (!isCommandAvailable("kind")) return false
-        return try {
-            val result = svc.runProcess(
-                listOf("kind", "get", "clusters"),
-                directory = File(System.getProperty("user.home")),
-                allowedExitCodes = setOf(0)
-            )
-            result.stdout.lines().any { it.trim() == "gentepede-local" }
-        } catch (_: Exception) {
-            false
         }
     }
 

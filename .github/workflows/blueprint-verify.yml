@@ -18,9 +18,8 @@ jobs:
     timeout-minutes: 60
 
     # No AWS sandbox is needed: the verification is purely static — it generates each
-    # workspace and runs `terraform init` + `terraform validate` + checkov, none of which
-    # make AWS API calls. (Most of the blueprints' services — RDS, EKS, ECS, CloudFront —
-    # are LocalStack Pro features anyway, so a community LocalStack could not host them.)
+    # workspace and runs `terraform init -backend=false` + `terraform validate` + checkov,
+    # none of which make AWS API calls.
 
     steps:
       - name: Checkout repository
@@ -45,8 +44,6 @@ jobs:
 
       - name: Verify blueprints
         id: verify
-        env:
-          GENTEPEDE_MODE: LOCAL
         run: |
           set -e
           FAILED_BLUEPRINTS=""
@@ -59,7 +56,6 @@ jobs:
 
             # Call InfrastructureService directly via the test harness (no MCP server needed)
             result=$(java -cp build/libs/gentepede-mcp-all.jar \
-              -DGENTEPEDE_MODE=LOCAL \
               com.gentepede.ci.BlueprintVerifierKt \
               --blueprint "$blueprint_id" \
               --project "ci-verify-${blueprint_id}" \
@@ -104,7 +100,7 @@ jobs:
           After fixing, verify locally with:
           \`\`\`bash
           ./gradlew shadowJar
-          GENTEPEDE_MODE=LOCAL java -cp build/libs/gentepede-mcp-all.jar \\
+          java -cp build/libs/gentepede-mcp-all.jar \\
             com.gentepede.ci.BlueprintVerifierKt \\
             --blueprint ${blueprint_id} --project ci-verify-${blueprint_id}
           \`\`\`" \
@@ -131,3 +127,20 @@ jobs:
           git add src/main/resources/blueprints/
           git diff --staged --quiet || git commit -m "chore: update blueprint lastVerifiedDate to $VERIFIED_DATE [skip ci]"
           git push
+
+      # Check ALL links (internal + external) once per week so broken external URLs
+      # are caught without rate-limiting every PR. ci.yml uses --offline for PRs.
+      # --timeout and --max-retries guard against transient DNS/network failures.
+      - name: Check all markdown links (including external)
+        uses: lycheeverse/lychee-action@v2
+        if: always()
+        with:
+          args: >-
+            --no-progress
+            --exclude-path .gradle
+            --exclude-path build
+            --timeout 30
+            --max-retries 3
+            --exclude "https://img.shields.io"
+            '**/*.md'
+          fail: true

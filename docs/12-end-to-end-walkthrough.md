@@ -31,12 +31,6 @@ sudo apt install temurin-21-jdk
 
 Verify: `java -version` → `openjdk 21...`
 
-### Docker Desktop
-
-Download from https://www.docker.com/products/docker-desktop/ and install for your OS.
-
-Verify: `docker --version`
-
 ### Terraform
 
 **macOS:** `brew install terraform`
@@ -72,14 +66,6 @@ Verify: `kube-score version`
 **Linux:** `curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash`
 
 Verify: `helm version`
-
-### kind
-
-**macOS:** `brew install kind`
-**Windows:** `choco install kind`
-**Linux:** Download from https://github.com/kubernetes-sigs/kind/releases
-
-Verify: `kind version`
 
 ### infracost
 
@@ -118,7 +104,6 @@ Output: `build/libs/gentepede-mcp-all.jar`
 
 Verify:
 ```bash
-# The server reads MCP JSON-RPC from stdin. A quick smoke test is to check the JAR exists:
 ls -lh build/libs/gentepede-mcp-all.jar
 
 # To confirm it starts, run it briefly and kill it:
@@ -129,187 +114,29 @@ sleep 1 && kill %1
 
 ---
 
-## Phase 3 — Start LocalStack
+## Phase 3 — AWS Setup
+
+### Credentials
+
+Configure AWS credentials in your environment:
 
 ```bash
-docker run -d --name localstack \
-  -p 4566:4566 -p 4510-4559:4510-4559 \
-  localstack/localstack
+# Option A: environment variables
+export AWS_ACCESS_KEY_ID=AKIA...
+export AWS_SECRET_ACCESS_KEY=...
+export AWS_DEFAULT_REGION=us-east-1
 
-# Wait for it to start, then verify
-curl http://localhost:4566/_localstack/health
+# Option B: named profile (recommended)
+aws configure --profile my-profile
+# then set: export AWS_PROFILE=my-profile
 ```
 
-Expected: `{"services": {"s3": "running", ...}}`
-
----
-
-## Phase 4 — Configure Claude Desktop
-
-**Configuration file location:**
-- macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
-- Windows: `%APPDATA%\Claude\claude_desktop_config.json`
-- Linux: `~/.config/Claude/claude_desktop_config.json`
-
-**Add this configuration** (replace `/absolute/path/to` with the actual path):
-
-```json
-{
-  "mcpServers": {
-    "gentepede": {
-      "command": "java",
-      "args": ["-jar", "/absolute/path/to/gentepede-mcp/build/libs/gentepede-mcp-all.jar"],
-      "env": {
-        "GENTEPEDE_MODE": "LOCAL"
-      }
-    }
-  }
-}
-```
-
-**Restart Claude Desktop** to apply the configuration.
-
-**Verify the server connected:** In Claude Desktop, you should see a tools icon (🔧) indicating MCP tools are available. Hover over it to see "gentepede" listed.
-
----
-
-## Phase 5 — First LOCAL Deployment (ECS: springboot-postgres)
-
-In the Claude Desktop conversation:
-
-### Step 1: List blueprints
-**You:** "List the available Gentepede blueprints"
-**Claude calls:** `list_available_blueprints`
-**Response:** Shows 6 blueprints including `springboot-postgres`
-
-### Step 2: Generate workspace
-**You:** "Generate a Spring Boot + Postgres ECS workspace called 'my-api' with image my-ecr/app:1.0, cert ARN arn:aws:acm:us-east-1:123:certificate/test"
-**Claude calls:** `generate_infrastructure_package` with blueprint_name="springboot-postgres", project_name="my-api", variables=...
-**Response:**
-```
-Infrastructure Package Generated
-Project: my-api
-Mode: LOCAL
-Workspace: /Users/you/.gentepede/workspaces/my-api
-AWS Resources to Create: VPC, ALB, ECS_FARGATE, RDS_POSTGRES, KMS
-Next Step: Run validate_infrastructure_package
-```
-
-### Step 3: Validate
-**Claude calls:** `validate_infrastructure_package project_name="my-api"`
-**Response:**
-```
-terraform validate: PASSED
-checkov: PASSED
-✓ All validation checks passed.
-```
-
-### Step 4: Plan
-**Claude calls:** `plan_infrastructure_package project_name="my-api"`
-**Response:**
-```
-Will CREATE 14 resources
-Cost Estimate: $73.12/USD per month (estimated) (estimated)
-[CREATE] aws_kms_key.main
-[CREATE] aws_vpc.main
-...
-Next Step: Review the plan, then run apply_infrastructure_package.
-```
-
-### Step 5: Apply
-**Claude calls:** `apply_infrastructure_package project_name="my-api"`
-**Response:**
-```
-Apply Complete: my-api
-Apply successful.
-State backup: /Users/you/.gentepede/backups/my-api/2025-06-14T10-30-00Z.tfstate
-```
-
-### Step 6: Detect drift
-**Claude calls:** `detect_drift project_name="my-api"`
-**Response:**
-```
-Has drift: false
-Terraform: No drift detected.
-Recommendation: Infrastructure matches desired state.
-```
-
-### Step 7: Full security audit
-**Claude calls:** `audit_infrastructure_package project_name="my-api"`
-**Response:** Full findings report grouped by severity.
-
----
-
-## Phase 6 — First LOCAL EKS Deployment (springboot-eks)
-
-### Step 1: Generate the workspace (includes kind-config.yaml)
-```
-generate_infrastructure_package
-  blueprint_name: "springboot-eks"
-  project_name: "my-eks-app"
-  variables:
-    container_image: "my-ecr/app:1.0"
-    image_tag: "1.0"
-    certificate_arn: "arn:aws:acm:us-east-1:123:certificate/test"
-```
-
-### Step 2: Create the kind cluster
-```bash
-kind create cluster --name gentepede-local \
-  --config ~/.gentepede/workspaces/my-eks-app/kind-config.yaml
-
-# Verify
-kind get clusters        # → gentepede-local
-kubectl get nodes        # → shows control-plane + 2 worker nodes
-```
-
-### Step 3: Validate, plan, apply (same as Phase 5)
-
-The plan output for EKS blueprints also shows the rendered Helm manifests:
-```
-Rendered Kubernetes Manifests (Helm):
-------------------------------------------------------------
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: my-eks-app
-...
-```
-
-The apply output shows both Terraform and Helm results:
-```
-Apply Complete: my-eks-app
-Helm Deploy Output:
-Release "my-eks-app" does not exist. Installing it now.
-NAME: my-eks-app
-LAST DEPLOYED: ...
-STATUS: deployed
-```
-
-### Step 4: Access the app locally
-```bash
-# Port-forward the service to your local machine
-kubectl port-forward svc/my-eks-app 8080:80 -n my-eks-app
-
-# Test
-curl http://localhost:8080/health
-```
-
----
-
-## Phase 7 — Switch to PRODUCTION
-
-### AWS Credentials
-```bash
-# Option A: environment variables (add to claude_desktop_config.json env block)
-"AWS_ACCESS_KEY_ID": "AKIA...",
-"AWS_SECRET_ACCESS_KEY": "...",
-
-# Option B: named profile
-"AWS_PROFILE": "my-aws-profile"
-```
+Verify: `aws sts get-caller-identity`
 
 ### Create Remote State Prerequisites (once per project)
+
+Gentepede uses an S3 bucket and DynamoDB table for Terraform remote state. Create these once before your first `plan`:
+
 ```bash
 PROJECT=my-api
 REGION=us-east-1
@@ -333,15 +160,24 @@ aws dynamodb create-table \
   --region ${REGION}
 ```
 
-### Update Claude Desktop Config
+---
+
+## Phase 4 — Configure Claude Desktop
+
+**Configuration file location:**
+- macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- Windows: `%APPDATA%\Claude\claude_desktop_config.json`
+- Linux: `~/.config/Claude/claude_desktop_config.json`
+
+**Add this configuration** (replace `/absolute/path/to` with the actual path):
+
 ```json
 {
   "mcpServers": {
     "gentepede": {
       "command": "java",
-      "args": ["-jar", "/path/to/gentepede-mcp-all.jar"],
+      "args": ["-jar", "/absolute/path/to/gentepede-mcp/build/libs/gentepede-mcp-all.jar"],
       "env": {
-        "GENTEPEDE_MODE": "PRODUCTION",
         "AWS_PROFILE": "my-profile",
         "AWS_DEFAULT_REGION": "us-east-1"
       }
@@ -350,25 +186,121 @@ aws dynamodb create-table \
 }
 ```
 
-Restart Claude Desktop.
+**Restart Claude Desktop** to apply the configuration.
 
-### PRODUCTION vs LOCAL Differences in Tool Output
+**Verify the server connected:** In Claude Desktop, you should see a tools icon (🔧) indicating MCP tools are available. Hover over it to see "gentepede" listed.
 
-**plan_infrastructure_package (PRODUCTION):**
-- Prepends caller identity:
-  ```
-  Acting as: arn:aws:iam::123456789012:role/deploy-role
-  Account:   123456789012
-  ```
-- Takes longer (real AWS API calls, ~2-5 minutes for initial plan)
-- Cost estimate reflects real AWS pricing
+---
 
-**apply_infrastructure_package (PRODUCTION):**
-- ECS Fargate deploy: ~5-10 minutes
-- EKS cluster creation: ~15-25 minutes (control plane provisioning)
-- RDS instance: ~5-10 minutes
-- State stored in S3 (accessible by team members)
+## Phase 5 — First Deployment (ECS: springboot-postgres)
 
-**detect_drift (PRODUCTION):**
-- Results are meaningful — reflects actual AWS resource state
-- In LOCAL, LocalStack resets on Docker restart, so drift is expected after restart
+In the Claude Desktop conversation:
+
+### Step 1: List blueprints
+**You:** "List the available Gentepede blueprints"
+**Claude calls:** `list_available_blueprints`
+**Response:** Shows 6 blueprints including `springboot-postgres`
+
+### Step 2: Generate workspace
+**You:** "Generate a Spring Boot + Postgres ECS workspace called 'my-api' with image my-ecr/app:1.0, cert ARN arn:aws:acm:us-east-1:123:certificate/test"
+**Claude calls:** `generate_infrastructure_package` with blueprint_name="springboot-postgres", project_name="my-api", variables=...
+**Response:**
+```
+Infrastructure Package Generated
+Project: my-api
+Workspace: /Users/you/.gentepede/workspaces/my-api
+AWS Resources to Create: VPC, ALB, ECS_FARGATE, RDS_POSTGRES, KMS
+Next Step: Run validate_infrastructure_package
+```
+
+### Step 3: Validate
+**Claude calls:** `validate_infrastructure_package project_name="my-api"`
+**Response:**
+```
+terraform validate: PASSED
+checkov: PASSED
+✓ All validation checks passed.
+```
+
+### Step 4: Plan
+**Claude calls:** `plan_infrastructure_package project_name="my-api"`
+**Response:**
+```
+Acting as: arn:aws:iam::123456789012:role/deploy-role
+Account:   123456789012
+
+Will CREATE 14 resources
+Cost Estimate: $73.12/USD per month (estimated)
+[CREATE] aws_kms_key.main
+[CREATE] aws_vpc.main
+...
+Next Step: Review the plan, then run apply_infrastructure_package.
+```
+
+### Step 5: Apply
+**Claude calls:** `apply_infrastructure_package project_name="my-api"`
+**Response:**
+```
+Apply Complete: my-api
+Apply successful. (~5-10 minutes for ECS, ~15-25 for EKS)
+State backup: /Users/you/.gentepede/backups/my-api/2025-06-14T10-30-00Z.tfstate
+```
+
+### Step 6: Detect drift
+**Claude calls:** `detect_drift project_name="my-api"`
+**Response:**
+```
+Has drift: false
+Terraform: No drift detected.
+Recommendation: Infrastructure matches desired state.
+```
+
+### Step 7: Full security audit
+**Claude calls:** `audit_infrastructure_package project_name="my-api"`
+**Response:** Full findings report grouped by severity.
+
+---
+
+## Phase 6 — EKS Deployment (springboot-eks)
+
+### Step 1: Generate the workspace
+```
+generate_infrastructure_package
+  blueprint_name: "springboot-eks"
+  project_name: "my-eks-app"
+  variables:
+    container_image: "my-ecr/app:1.0"
+    image_tag: "1.0"
+    certificate_arn: "arn:aws:acm:us-east-1:123:certificate/test"
+```
+
+### Step 2: Validate, plan, apply
+
+The plan output for EKS blueprints also shows the rendered Helm manifests:
+```
+Rendered Kubernetes Manifests (Helm):
+------------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-eks-app
+...
+```
+
+The apply output shows both Terraform and Helm results (EKS cluster creation takes ~15-25 minutes):
+```
+Apply Complete: my-eks-app
+Helm Deploy Output:
+Release "my-eks-app" does not exist. Installing it now.
+NAME: my-eks-app
+LAST DEPLOYED: ...
+STATUS: deployed
+```
+
+After Terraform apply completes, Helm deploys to whatever EKS cluster is set as the current context in `~/.kube/config`. Before running apply, update your kubeconfig to point at the new cluster:
+
+```bash
+aws eks update-kubeconfig --name my-eks-app --region us-east-1
+```
+
+This sets the current context so `helm upgrade --install` (run by Gentepede inside `apply_infrastructure_package`) targets the right cluster.

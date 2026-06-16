@@ -1,7 +1,7 @@
 {
   "blueprintId": "springboot-eks",
   "displayName": "Spring Boot + PostgreSQL (EKS + Helm)",
-  "description": "Deploys a Spring Boot application on Amazon EKS using Helm, with an RDS PostgreSQL database, ALB Ingress Controller for HTTPS, and a private VPC. Generates both Terraform (cluster, RDS, VPC) and a production-ready Helm chart (Deployment, HPA, NetworkPolicy, ResourceQuota). Supports local testing via kind.",
+  "description": "Deploys a Spring Boot application on Amazon EKS using Helm, with an RDS PostgreSQL database, ALB Ingress Controller for HTTPS, and a private VPC. Generates both Terraform (cluster, RDS, VPC) and a production-ready Helm chart (Deployment, HPA, NetworkPolicy, ResourceQuota).",
   "outputType": "TERRAFORM_K8S",
   "templateFamily": "eks",
   "terraformProviderVersion": "5.82.0",
@@ -65,7 +65,7 @@
     },
     {
       "name": "aws_profile",
-      "description": "AWS CLI profile name (PRODUCTION only)",
+      "description": "AWS CLI named profile",
       "type": "string",
       "default": "default",
       "required": false

@@ -14,7 +14,7 @@ variable "aws_region" {
 }
 
 variable "aws_profile" {
-  description = "AWS CLI named profile. Used by the PRODUCTION provider; ignored in LOCAL mode."
+  description = "AWS CLI named profile."
   type        = string
   default     = "default"
 }
@@ -135,16 +135,4 @@ variable "enable_redis" {
   description = "Provision the ElastiCache Redis cluster (fastapi-redis blueprint)."
   type        = bool
   default     = false
-}
-
-# ─── LocalStack compatibility ──────────────────────────────────────────────
-# LocalStack Community's ECS emulation never reports a steady-state deployment,
-# so terraform apply hangs indefinitely waiting on it. Gentepede sets this to
-# false in LOCAL mode tfvars; real AWS deployments keep the default (true) so
-# a bad rollout still fails the apply. See InfrastructureService.buildTfvarsContent.
-
-variable "ecs_wait_for_steady_state" {
-  description = "Whether terraform apply waits for the ECS service to reach a steady state."
-  type        = bool
-  default     = true
 }
