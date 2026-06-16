@@ -77,7 +77,7 @@ resource "aws_kms_alias" "main" {
 # ─────────────────────────────────────────────────────────────────────────────
 
 resource "aws_vpc" "main" {
-  cidr_block           = "10.0.0.0/16"
+  cidr_block = "10.0.0.0/16"
   # enable_dns_hostnames + enable_dns_support: required for EKS cluster to resolve
   # service endpoints, RDS hostnames, and Kubernetes internal DNS (CoreDNS).
   # Also required for the ALB Ingress Controller to discover VPC resources by DNS.
@@ -85,9 +85,9 @@ resource "aws_vpc" "main" {
   enable_dns_support   = true
 
   tags = {
-    Environment                          = var.environment
-    Project                              = var.project_name
-    ManagedBy                            = "gentepede-mcp"
+    Environment = var.environment
+    Project     = var.project_name
+    ManagedBy   = "gentepede-mcp"
     # These tags are required by the AWS ALB Ingress Controller to discover subnets.
     "kubernetes.io/cluster/${var.project_name}-eks" = "shared"
   }
@@ -627,13 +627,13 @@ resource "aws_db_subnet_group" "main" {
 }
 
 resource "aws_db_instance" "postgres" {
-  count                   = var.enable_rds ? 1 : 0
-  identifier              = "${var.project_name}-postgres"
-  engine                  = "postgres"
-  engine_version          = "16.3"
-  instance_class          = var.db_instance_class
-  allocated_storage       = var.db_allocated_storage
-  max_allocated_storage   = var.db_allocated_storage * 5
+  count                 = var.enable_rds ? 1 : 0
+  identifier            = "${var.project_name}-postgres"
+  engine                = "postgres"
+  engine_version        = "16.3"
+  instance_class        = var.db_instance_class
+  allocated_storage     = var.db_allocated_storage
+  max_allocated_storage = var.db_allocated_storage * 5
 
   db_name                     = var.db_name
   username                    = var.db_username
@@ -645,8 +645,8 @@ resource "aws_db_instance" "postgres" {
   # CKV_AWS_17 — database not reachable from the internet
   publicly_accessible = false
   # CKV_AWS_23 — encrypted at rest with project KMS key
-  storage_encrypted   = true
-  kms_key_id          = aws_kms_key.main.arn
+  storage_encrypted = true
+  kms_key_id        = aws_kms_key.main.arn
 
   skip_final_snapshot     = true
   backup_retention_period = 7
@@ -796,7 +796,7 @@ resource "aws_cloudfront_distribution" "app" {
     # minimum_protocol_version: reject connections using TLS 1.0 or 1.1.
     # "TLSv1.2_2021" requires TLS 1.2+ and uses a modern cipher suite list.
     # TLS 1.0/1.1 have known vulnerabilities and are deprecated by all major browsers.
-    minimum_protocol_version       = "TLSv1.2_2021"
+    minimum_protocol_version = "TLSv1.2_2021"
   }
 
   tags = {

@@ -112,14 +112,14 @@ resource "aws_vpc" "main" {
   # We carve subnets out of this range: 10.0.0.0/24, 10.0.1.0/24 (public),
   # 10.0.10.0/24, 10.0.11.0/24 (private). Private ranges (RFC 1918): 10.x.x.x,
   # 172.16–31.x.x, 192.168.x.x — these IPs are not routable on the public internet.
-  cidr_block           = "10.0.0.0/16"
+  cidr_block = "10.0.0.0/16"
   # enable_dns_hostnames is required for RDS and ElastiCache endpoint resolution
   # inside the VPC. Without it, DNS names returned by AWS would not resolve.
   # Example: "mydb.abc123.us-east-1.rds.amazonaws.com" would not resolve to an IP.
   enable_dns_hostnames = true
   # enable_dns_support enables the Amazon-provided DNS resolver at 169.254.169.253.
   # Without it, instances in the VPC cannot resolve any DNS names.
-  enable_dns_support   = true
+  enable_dns_support = true
 
   tags = {
     Environment = var.environment
@@ -821,8 +821,8 @@ data "aws_iam_policy_document" "ecs_task_permissions" {
   }
 
   statement {
-    sid     = "KMSDecrypt"
-    actions = ["kms:Decrypt", "kms:GenerateDataKey"]
+    sid       = "KMSDecrypt"
+    actions   = ["kms:Decrypt", "kms:GenerateDataKey"]
     resources = [aws_kms_key.main.arn]
   }
 
@@ -932,7 +932,7 @@ resource "aws_iam_role_policy_attachment" "ecs_exec" {
 # ─────────────────────────────────────────────────────────────────────────────
 
 resource "aws_cloudwatch_log_group" "ecs" {
-  name              = "/ecs/${var.project_name}"
+  name = "/ecs/${var.project_name}"
   # KMS encryption on CloudWatch logs prevents log data from being readable
   # if an attacker gains S3 access without KMS permissions.
   kms_key_id        = aws_kms_key.main.arn
@@ -970,7 +970,7 @@ resource "aws_ecs_cluster" "main" {
   name = "${var.project_name}-cluster"
 
   setting {
-    name  = "containerInsights"
+    name = "containerInsights"
     # Container Insights enables CloudWatch metrics for CPU, memory, and network
     # per task. Without it, you cannot set alarms or investigate performance issues.
     value = "enabled"
@@ -1057,8 +1057,8 @@ resource "aws_ecs_service" "app" {
   deployment_maximum_percent         = 200
 
   network_configuration {
-    subnets          = aws_subnet.private[*].id
-    security_groups  = [aws_security_group.ecs_tasks.id]
+    subnets         = aws_subnet.private[*].id
+    security_groups = [aws_security_group.ecs_tasks.id]
     # assign_public_ip must be false — tasks are in private subnets
     assign_public_ip = false
   }
@@ -1111,18 +1111,18 @@ resource "aws_db_subnet_group" "main" {
 }
 
 resource "aws_db_instance" "postgres" {
-  count                   = var.enable_rds ? 1 : 0
-  identifier              = "${var.project_name}-postgres"
-  engine                  = "postgres"
-  engine_version          = "16.3"
-  instance_class          = var.db_instance_class
-  allocated_storage       = var.db_allocated_storage
+  count             = var.enable_rds ? 1 : 0
+  identifier        = "${var.project_name}-postgres"
+  engine            = "postgres"
+  engine_version    = "16.3"
+  instance_class    = var.db_instance_class
+  allocated_storage = var.db_allocated_storage
   # max_allocated_storage enables RDS Storage Autoscaling. When the database is
   # more than 90% full, RDS automatically increases storage up to this limit without
   # downtime. Setting it to 5× the initial means you start small (20 GB default)
   # but can grow to 100 GB automatically. Without this, a full disk causes the
   # database to go into read-only mode and your application to start failing writes.
-  max_allocated_storage   = var.db_allocated_storage * 5
+  max_allocated_storage = var.db_allocated_storage * 5
 
   db_name  = var.db_name
   username = var.db_username
