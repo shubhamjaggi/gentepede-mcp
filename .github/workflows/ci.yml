@@ -43,9 +43,7 @@ jobs:
         with:
           report_paths: 'build/test-results/test/*.xml'
           check_name: 'Unit Test Results'
-          # The build step already fails the job on test failure; this step's
-          # job is only to annotate — not to re-fail.
-          fail_on_failure: false
+          fail_on_failure: true
 
       # JaCoCo generates XML + HTML coverage reports as a finalizer of the test task.
       - name: Upload coverage report
@@ -71,8 +69,8 @@ jobs:
               None,
           )
           if counter is None:
-              print("WARNING: INSTRUCTION counter not found in JaCoCo report — skipping threshold check")
-              sys.exit(0)
+              print("ERROR: INSTRUCTION counter not found in JaCoCo report — coverage check cannot run")
+              sys.exit(1)
 
           missed = int(counter.get("missed"))
           covered = int(counter.get("covered"))
@@ -199,7 +197,3 @@ jobs:
 
       - name: Submit Gradle dependency graph
         uses: gradle/actions/dependency-submission@v4
-        with:
-          # Non-fatal: the Dependency Graph feature may be disabled on the repo.
-          # Enable it at Settings → Security → Code security → Dependency graph.
-          dependency-graph-continue-on-failure: true

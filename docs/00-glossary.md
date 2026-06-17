@@ -27,7 +27,7 @@ A JSON file in `src/main/resources/blueprints/` that describes a complete AWS ar
 ## C
 
 **checkov**
-An open-source static analysis tool for Terraform (and other IaC formats) that checks for security misconfigurations. Gentepede runs it in `validate_infrastructure_package` (abort on HIGH/CRITICAL) and `audit_infrastructure_package` (report all). See `docs/09-security-model.md` for the full list of checks enforced.
+An open-source static analysis tool for Terraform (and other IaC formats) that checks for security misconfigurations. Gentepede runs it in `validate_infrastructure_package` (abort on HIGH/CRITICAL) and `audit_infrastructure_package` (report all). See `docs/08-security-model.md` for the full list of checks enforced.
 
 **CloudFront**
 AWS's global content delivery network (CDN). Gentepede places CloudFront in front of API Gateway (nodejs-s3 blueprint) to cache responses at edge locations and enforce HTTPS globally.

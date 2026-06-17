@@ -185,7 +185,7 @@ DynamoDB's NoSQL model is incompatible with Hibernate's relational assumptions. 
 
 Ktor is a lightweight async Kotlin HTTP framework. It pairs naturally with the AWS SDK v2's async DynamoDB client, which uses Kotlin coroutines. DynamoDB requires no connection pool (HTTP-based), no schema migrations, and scales automatically. This makes it a low-friction choice for Kotlin microservices that don't need relational queries.
 
-If the Ktor service needs relational data, fork the blueprint and substitute RDS (see [docs/10-adding-blueprints.md](10-adding-blueprints.md)).
+If the Ktor service needs relational data, fork the blueprint and substitute RDS (see [docs/09-adding-blueprints.md](09-adding-blueprints.md)).
 
 ### FastAPI + ElastiCache Redis
 
@@ -229,7 +229,7 @@ If a new blueprint needs a data tier that doesn't exist yet (e.g. Aurora Serverl
    ```
 5. Run the blueprint verifier: `./gradlew shadowJar && java -cp build/libs/gentepede-mcp-all.jar com.gentepede.ci.BlueprintVerifierKt --blueprint <new-id> --project test`
 
-See [docs/10-adding-blueprints.md](10-adding-blueprints.md) for the complete step-by-step guide.
+See [docs/09-adding-blueprints.md](09-adding-blueprints.md) for the complete step-by-step guide.
 
 ---
 

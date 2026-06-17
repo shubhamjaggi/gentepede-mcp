@@ -12,10 +12,6 @@ updates:
       - "dependencies"
     open-pull-requests-limit: 5
     ignore:
-      # Gradle 9 is incompatible with com.gradleup.shadow (mainClassName property removed).
-      # Unpin once shadow plugin releases Gradle 9 support.
-      - dependency-name: "gradle"
-        update-types: ["version-update:semver-major"]
       # JUnit 6 has breaking API changes; block major-version bumps only.
       # Tests use explicit Assertions.assertNotNull/assertNull to avoid Kotlin contract
       # extension overload ambiguity that affected 5.13.x and 5.14.x with star-imports.

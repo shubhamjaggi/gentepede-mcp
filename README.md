@@ -71,7 +71,7 @@ cd gentepede-mcp
 # "Generate a Spring Boot + Postgres ECS infrastructure called 'my-api'"
 ```
 
-See [docs/12-end-to-end-walkthrough.md](docs/12-end-to-end-walkthrough.md) for the complete guide.
+See [docs/11-end-to-end-walkthrough.md](docs/11-end-to-end-walkthrough.md) for the complete guide.
 
 ---
 
@@ -121,7 +121,7 @@ audit_infrastructure_package      → Standalone security report (any time)
 
 ## Security Model
 
-Gentepede embeds security best practices directly in every Terraform template and Helm chart — you cannot generate insecure infrastructure without modifying the templates. checkov runs as a gate before planning (blocks on HIGH/CRITICAL); kube-score validates Kubernetes manifests. AWS credential identity is confirmed before every operation that contacts AWS, and plan file checksums prevent stale plan application. See [docs/09-security-model.md](docs/09-security-model.md).
+Gentepede embeds security best practices directly in every Terraform template and Helm chart — you cannot generate insecure infrastructure without modifying the templates. checkov runs as a gate before planning (blocks on HIGH/CRITICAL); kube-score validates Kubernetes manifests. AWS credential identity is confirmed before every operation that contacts AWS, and plan file checksums prevent stale plan application. See [docs/08-security-model.md](docs/08-security-model.md).
 
 ---
 
@@ -136,23 +136,23 @@ Gentepede embeds security best practices directly in every Terraform template an
 | [docs/04-blueprints-guide.md](docs/04-blueprints-guide.md) | Blueprint schema field-by-field, outputType comparison |
 | [docs/05-terraform-guide.md](docs/05-terraform-guide.md) | Resource-by-resource walkthrough, state management |
 | [docs/06-kubernetes-guide.md](docs/06-kubernetes-guide.md) | ECS vs EKS, Helm chart walkthrough, Kubernetes resources |
-| [docs/08-tools-reference.md](docs/08-tools-reference.md) | All 8 tools: full input/output, workflow diagram |
-| [docs/09-security-model.md](docs/09-security-model.md) | checkov + kube-score tables, credential pre-flight |
-| [docs/10-adding-blueprints.md](docs/10-adding-blueprints.md) | Worked example: adding `go-dynamodb` end-to-end |
-| [docs/11-troubleshooting.md](docs/11-troubleshooting.md) | Every common error with exact message, cause, fix |
-| [docs/12-end-to-end-walkthrough.md](docs/12-end-to-end-walkthrough.md) | Complete Phase 1-6 walkthrough from fresh machine to AWS deployment |
-| [docs/13-development-guide.md](docs/13-development-guide.md) | Build, test, debug, project structure for contributors |
-| [docs/14-faq.md](docs/14-faq.md) | Common questions from users and contributors |
-| [docs/15-blueprint-to-resource-map.md](docs/15-blueprint-to-resource-map.md) | Full mapping: which blueprint provisions which AWS services and why |
-| [docs/16-tool-architecture.md](docs/16-tool-architecture.md) | End-to-end architecture of all 8 tools: every layer, every CLI call, every file |
-| [docs/17-contributor-sync-guide.md](docs/17-contributor-sync-guide.md) | Complete sync checklist for every contributor change type (blueprint, template family, tool, Helm chart, provider bump) |
-| [docs/18-github-actions-guide.md](docs/18-github-actions-guide.md) | Plain-English explanation of every CI workflow: what it does, when it runs, and why |
+| [docs/07-tools-reference.md](docs/07-tools-reference.md) | All 8 tools: full input/output, workflow diagram |
+| [docs/08-security-model.md](docs/08-security-model.md) | checkov + kube-score tables, credential pre-flight |
+| [docs/09-adding-blueprints.md](docs/09-adding-blueprints.md) | Worked example: adding `go-dynamodb` end-to-end |
+| [docs/10-troubleshooting.md](docs/10-troubleshooting.md) | Every common error with exact message, cause, fix |
+| [docs/11-end-to-end-walkthrough.md](docs/11-end-to-end-walkthrough.md) | Complete Phase 1-6 walkthrough from fresh machine to AWS deployment |
+| [docs/12-development-guide.md](docs/12-development-guide.md) | Build, test, debug, project structure for contributors |
+| [docs/13-faq.md](docs/13-faq.md) | Common questions from users and contributors |
+| [docs/14-blueprint-to-resource-map.md](docs/14-blueprint-to-resource-map.md) | Full mapping: which blueprint provisions which AWS services and why |
+| [docs/15-tool-architecture.md](docs/15-tool-architecture.md) | End-to-end architecture of all 8 tools: every layer, every CLI call, every file |
+| [docs/16-contributor-sync-guide.md](docs/16-contributor-sync-guide.md) | Complete sync checklist for every contributor change type (blueprint, template family, tool, Helm chart, provider bump) |
+| [docs/17-github-actions-guide.md](docs/17-github-actions-guide.md) | Plain-English explanation of every CI workflow: what it does, when it runs, and why |
 
 ---
 
 ## Contributing
 
-Contributions welcome — especially new blueprints for additional tech stacks. Start with [CONTRIBUTING.md](CONTRIBUTING.md), and see [docs/10-adding-blueprints.md](docs/10-adding-blueprints.md) for the step-by-step blueprint guide and PR checklist.
+Contributions welcome — especially new blueprints for additional tech stacks. Start with [CONTRIBUTING.md](CONTRIBUTING.md), and see [docs/09-adding-blueprints.md](docs/09-adding-blueprints.md) for the step-by-step blueprint guide and PR checklist.
 
 The architecture deliberately separates concerns: Engine.kt (thin MCP handler), InfrastructureService.kt (business logic, fully testable without MCP server), Validator.kt (CLI output parsing), and Models.kt (shared types). Keep this separation when contributing.
 

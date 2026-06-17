@@ -50,7 +50,7 @@ It is pure static analysis. `terraform validate` reads your `.tf` files and chec
 
 ### Can I add my own blueprints without forking the repo?
 
-Not currently — blueprints must be bundled inside the JAR at build time. If you want custom blueprints, fork the repo, add your JSON files to `src/main/resources/blueprints/`, register them in `InfrastructureService.listBlueprints()`, and build your own JAR. See `docs/10-adding-blueprints.md`.
+Not currently — blueprints must be bundled inside the JAR at build time. If you want custom blueprints, fork the repo, add your JSON files to `src/main/resources/blueprints/`, register them in `InfrastructureService.listBlueprints()`, and build your own JAR. See `docs/09-adding-blueprints.md`.
 
 ---
 
@@ -86,7 +86,7 @@ Because the `skipped` field drives the output line. `skipped = true` → `kube-s
 
 ### Can I add a new template family (e.g. `fargate-spot/`)?
 
-Yes. The full sync checklist is in [docs/17-contributor-sync-guide.md §2](17-contributor-sync-guide.md#2-add-a-new-template-family). In summary:
+Yes. The full sync checklist is in [docs/16-contributor-sync-guide.md §2](16-contributor-sync-guide.md#2-add-a-new-template-family). In summary:
 
 **Code changes:**
 1. Create `templates/{new-family}/main.tf` and `variables.tf`
@@ -97,9 +97,9 @@ Yes. The full sync checklist is in [docs/17-contributor-sync-guide.md §2](17-co
 6. Run `BlueprintVerifierKt` to confirm `terraform validate` + checkov pass
 
 **Documentation changes (all required — not optional):**
-7. Update `docs/13-development-guide.md` project structure tree to show the new directory
+7. Update `docs/12-development-guide.md` project structure tree to show the new directory
 8. Update `docs/04-blueprints-guide.md` "All Blueprints at a Glance" table with the new blueprint(s)
-9. Add a new template family section to `docs/15-blueprint-to-resource-map.md` (resource table + why the data tier fits)
+9. Add a new template family section to `docs/14-blueprint-to-resource-map.md` (resource table + why the data tier fits)
 10. Update `docs/00-glossary.md` if the new family uses AWS services not already defined
 11. Update `README.md` Supported Blueprints table with new blueprint row(s)
 

@@ -22,7 +22,7 @@ If you are proposing a new infrastructure blueprint, please outline:
 - Target AWS architecture (ECS / EKS / Lambda + data tier):
 - Template family it would use (`ecs` / `lambda` / `eks`) or whether a new family is needed:
 
-See [docs/10-adding-blueprints.md](../../docs/10-adding-blueprints.md) for the end-to-end guide.
+See [docs/09-adding-blueprints.md](../../docs/09-adding-blueprints.md) for the end-to-end guide.
 
 ## Alternatives Considered
 

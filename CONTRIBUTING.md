@@ -36,7 +36,7 @@ See [docs/02-architecture.md](docs/02-architecture.md) for the full call graph.
 
 ## Keeping the Repo in Sync
 
-Every change in Gentepede has dependents: code that calls it, docs that describe it, tests that verify it. **Before opening a PR, consult [docs/17-contributor-sync-guide.md](docs/17-contributor-sync-guide.md)** to find your change type and follow its complete sync checklist.
+Every change in Gentepede has dependents: code that calls it, docs that describe it, tests that verify it. **Before opening a PR, consult [docs/16-contributor-sync-guide.md](docs/16-contributor-sync-guide.md)** to find your change type and follow its complete sync checklist.
 
 Quick map:
 - Adding a blueprint → update 4 docs + register in InfrastructureService + add tests
@@ -50,7 +50,7 @@ Quick map:
 
 Adding support for a new tech stack is the most welcome kind of contribution.
 Follow the end-to-end worked example in
-[docs/10-adding-blueprints.md](docs/10-adding-blueprints.md), which includes the
+[docs/09-adding-blueprints.md](docs/09-adding-blueprints.md), which includes the
 full PR checklist.
 
 ## Making Changes

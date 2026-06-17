@@ -128,14 +128,14 @@ After the CI workflow passes, `lastVerifiedDate` is updated automatically. Befor
 - [ ] `lastVerifiedDate` set to current `YYYY-MM`
 - [ ] Blueprint added to `InfrastructureService.listBlueprints()` ID list
 - [ ] `InfrastructureServiceTest.kt` — blueprint loading test added; data-tier toggle test added
-- [ ] If new template family needed: see [docs/17-contributor-sync-guide.md §2](17-contributor-sync-guide.md#2-add-a-new-template-family) — additional code changes required
+- [ ] If new template family needed: see [docs/16-contributor-sync-guide.md §2](16-contributor-sync-guide.md#2-add-a-new-template-family) — additional code changes required
 - [ ] If TERRAFORM_K8S: Helm values overrides added to `buildHelmValues()`
 
 ### Documentation (all four must be updated)
 
 - [ ] `README.md` Supported Blueprints table — new row with all columns
 - [ ] `docs/04-blueprints-guide.md` "All Blueprints at a Glance" table — new row
-- [ ] `docs/15-blueprint-to-resource-map.md` — new section under the relevant template family (resource table + "why this tech stack" explanation)
+- [ ] `docs/14-blueprint-to-resource-map.md` — new section under the relevant template family (resource table + "why this tech stack" explanation)
 - [ ] `docs/00-glossary.md` — new entry for any AWS service introduced that is not already defined
 
 ### Verification
@@ -144,4 +144,4 @@ After the CI workflow passes, `lastVerifiedDate` is updated automatically. Befor
 - [ ] Local plan produces expected resource list
 - [ ] CI job passes (or is explicitly waived with explanation in PR description)
 
-For the complete sync dependency map for all change types, see [docs/17-contributor-sync-guide.md](17-contributor-sync-guide.md).
+For the complete sync dependency map for all change types, see [docs/16-contributor-sync-guide.md](16-contributor-sync-guide.md).

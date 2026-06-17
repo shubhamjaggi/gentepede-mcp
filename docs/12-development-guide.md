@@ -197,13 +197,13 @@ Exit 0 = all 8 tools present. No Terraform or AWS needed.
 
 ## Adding a New Blueprint
 
-See `docs/10-adding-blueprints.md` for the step-by-step guide and `docs/17-contributor-sync-guide.md` for the complete list of files that must stay in sync. In summary:
+See `docs/09-adding-blueprints.md` for the step-by-step guide and `docs/16-contributor-sync-guide.md` for the complete list of files that must stay in sync. In summary:
 
 1. Create `src/main/resources/blueprints/{id}.json`
 2. Add the ID to `InfrastructureService.listBlueprints()`
 3. If the blueprint's `awsResources` include a new type not handled by an existing family, add a new toggle in `injectDataTierToggles()` and gate the resource in the corresponding `main.tf` with `count = var.enable_X ? 1 : 0`
 4. If the blueprint is `TERRAFORM_K8S` with a new framework, add a port/path triple to `buildHelmValues()`
-5. Update four documentation files: `README.md`, `docs/04-blueprints-guide.md`, `docs/15-blueprint-to-resource-map.md`, and `docs/00-glossary.md` (if new services introduced)
+5. Update four documentation files: `README.md`, `docs/04-blueprints-guide.md`, `docs/14-blueprint-to-resource-map.md`, and `docs/00-glossary.md` (if new services introduced)
 6. Run `./gradlew shadowJar && java -cp build/libs/gentepede-mcp-all.jar com.gentepede.ci.BlueprintVerifierKt --blueprint {id} --project test-{id}`
 
 ---
@@ -239,7 +239,7 @@ The source Helm chart is in `helm-chart/`. After editing:
 
 ## CI Workflows
 
-Four workflows protect the codebase. For a full plain-English explanation of each, see `docs/18-github-actions-guide.md`.
+Four workflows protect the codebase. For a full plain-English explanation of each, see `docs/17-github-actions-guide.md`.
 
 ### ci.yml — Build, Test, Smoke Test, Blueprint Validate
 

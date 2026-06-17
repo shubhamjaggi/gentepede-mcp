@@ -1,6 +1,6 @@
 # Tools Reference
 
-This document covers each tool's inputs, outputs, and when to use it. For a deep dive into how each tool works under the hood — every code layer, every CLI command, every file written — see [docs/16-tool-architecture.md](16-tool-architecture.md).
+This document covers each tool's inputs, outputs, and when to use it. For a deep dive into how each tool works under the hood — every code layer, every CLI command, every file written — see [docs/15-tool-architecture.md](15-tool-architecture.md).
 
 ## Workflow Order
 

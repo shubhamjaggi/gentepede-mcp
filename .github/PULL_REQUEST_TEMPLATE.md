@@ -27,7 +27,7 @@ Fixes #<!-- issue number, if applicable -->
 
 ## Change-Specific Sync Checklist
 
-The items below only apply to the checked "Type of Change" above. See [docs/17-contributor-sync-guide.md](../docs/17-contributor-sync-guide.md) for the full dependency map.
+The items below only apply to the checked "Type of Change" above. See [docs/16-contributor-sync-guide.md](../docs/16-contributor-sync-guide.md) for the full dependency map.
 
 ### If this adds a blueprint
 
@@ -36,32 +36,32 @@ The items below only apply to the checked "Type of Change" above. See [docs/17-c
 - [ ] `InfrastructureServiceTest.kt` — blueprint load test + data-tier toggle test added
 - [ ] `README.md` Supported Blueprints table updated
 - [ ] `docs/04-blueprints-guide.md` "All Blueprints at a Glance" table updated
-- [ ] `docs/15-blueprint-to-resource-map.md` updated with new blueprint section
+- [ ] `docs/14-blueprint-to-resource-map.md` updated with new blueprint section
 - [ ] `docs/00-glossary.md` updated if any new AWS service introduced
-- [ ] Full checklist: [docs/10-adding-blueprints.md](../docs/10-adding-blueprints.md)
+- [ ] Full checklist: [docs/09-adding-blueprints.md](../docs/09-adding-blueprints.md)
 
 ### If this adds a new template family
 
 - [ ] `templates/{family}/main.tf` + `variables.tf` created
 - [ ] `TemplateFamily` enum in `Models.kt` updated
 - [ ] `InfrastructureService.injectDataTierToggles()` updated with new family branch
-- [ ] `docs/13-development-guide.md` project structure tree updated
-- [ ] `docs/15-blueprint-to-resource-map.md` new template family section added
-- [ ] Full checklist: [docs/17-contributor-sync-guide.md §2](../docs/17-contributor-sync-guide.md#2-add-a-new-template-family)
+- [ ] `docs/12-development-guide.md` project structure tree updated
+- [ ] `docs/14-blueprint-to-resource-map.md` new template family section added
+- [ ] Full checklist: [docs/16-contributor-sync-guide.md §2](../docs/16-contributor-sync-guide.md#2-add-a-new-template-family)
 
 ### If this adds a new MCP tool
 
 - [ ] Registered in `Main.kt`; handler in `Engine.kt`; logic in `InfrastructureService.kt`
-- [ ] `docs/08-tools-reference.md` new tool section added
-- [ ] `docs/16-tool-architecture.md` new tool architecture section added
+- [ ] `docs/07-tools-reference.md` new tool section added
+- [ ] `docs/15-tool-architecture.md` new tool architecture section added
 - [ ] `README.md` Deployment Workflow diagram updated if tool fits the main flow
-- [ ] Full checklist: [docs/17-contributor-sync-guide.md §3](../docs/17-contributor-sync-guide.md#3-add-a-new-mcp-tool)
+- [ ] Full checklist: [docs/16-contributor-sync-guide.md §3](../docs/16-contributor-sync-guide.md#3-add-a-new-mcp-tool)
 
 ### If this modifies a Terraform template
 
 - [ ] `variables.tf` updated for any new variables in `main.tf`
 - [ ] HCL concept comments updated to match the new behaviour
-- [ ] `docs/15-blueprint-to-resource-map.md` resource table updated if resources were added/removed
+- [ ] `docs/14-blueprint-to-resource-map.md` resource table updated if resources were added/removed
 - [ ] `BlueprintVerifierKt` run against all blueprints using that template family
 
 ### If this modifies the Helm chart

@@ -300,7 +300,7 @@ backend "s3" {
 
 **Why DynamoDB locking?** Without it, two concurrent `terraform apply` runs would both succeed but produce conflicting state — resulting in orphaned resources or incorrect state. DynamoDB provides a distributed lock: the second apply waits until the first releases the lock.
 
-**Prerequisites:** The S3 bucket and DynamoDB table must exist before the first `terraform apply`. See `docs/12-end-to-end-walkthrough.md` Phase 3 for setup commands.
+**Prerequisites:** The S3 bucket and DynamoDB table must exist before the first `terraform apply`. See `docs/11-end-to-end-walkthrough.md` Phase 3 for setup commands.
 
 **Note:** `validate_infrastructure_package` runs `terraform init -backend=false`, which skips backend initialization entirely — no S3 credentials needed for validate.
 

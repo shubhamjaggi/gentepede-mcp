@@ -216,7 +216,7 @@ Error: Plan file checksum mismatch. The plan may have been modified or regenerat
 
 **Root cause:** The S3 state bucket and DynamoDB lock table must exist before the first `terraform apply`. They cannot be created by Terraform themselves (chicken-and-egg problem).
 
-**Fix:** See `docs/12-end-to-end-walkthrough.md` Phase 3 for the exact setup commands. Create them once per project via the AWS CLI.
+**Fix:** See `docs/11-end-to-end-walkthrough.md` Phase 3 for the exact setup commands. Create them once per project via the AWS CLI.
 
 ---
 

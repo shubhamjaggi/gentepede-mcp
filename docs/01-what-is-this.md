@@ -87,4 +87,4 @@ Detects if someone changed something in the AWS console that Terraform doesn't k
 - A no-code platform that hides what it creates. Every file is visible in `~/.gentepede/workspaces/` and can be read, understood, and modified.
 - A Terraform alternative. Gentepede generates Terraform and orchestrates it. Terraform does the actual infrastructure provisioning.
 - An opinionated framework that locks you in. The generated Terraform is standard HCL that runs with the standard Terraform CLI.
-- A production-ready solution for every AWS architecture. Six blueprints cover common patterns; see `docs/10-adding-blueprints.md` to add your own.
+- A production-ready solution for every AWS architecture. Six blueprints cover common patterns; see `docs/09-adding-blueprints.md` to add your own.

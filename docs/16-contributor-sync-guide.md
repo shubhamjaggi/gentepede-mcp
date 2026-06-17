@@ -33,7 +33,7 @@ Every blueprint JSON file has these dependents:
 | `InfrastructureService.listBlueprints()` | Blueprint ID must appear in the hardcoded list |
 | `README.md` Supported Blueprints table | One row per blueprint |
 | `docs/04-blueprints-guide.md` "All Blueprints at a Glance" | One row per blueprint |
-| `docs/15-blueprint-to-resource-map.md` | Per-blueprint resource breakdown section |
+| `docs/14-blueprint-to-resource-map.md` | Per-blueprint resource breakdown section |
 | `docs/00-glossary.md` | If any new AWS service is introduced that isn't already defined |
 | `InfrastructureServiceTest.kt` | Blueprint loading test + data-tier toggle test + workspace generation test for the new ID |
 
@@ -48,8 +48,8 @@ Each template family directory (`templates/ecs/`, `templates/lambda/`, `template
 | `InfrastructureService.buildProvidersContent()` | If provider endpoint additions are needed |
 | `templates/{family}/variables.tf` | Every variable referenced in `main.tf` must be declared here |
 | `docs/04-blueprints-guide.md` | `templateFamily` field values in the schema section |
-| `docs/13-development-guide.md` project structure | New directory shown in the tree |
-| `docs/15-blueprint-to-resource-map.md` | New template family section (resource table + toggle table) |
+| `docs/12-development-guide.md` project structure | New directory shown in the tree |
+| `docs/14-blueprint-to-resource-map.md` | New template family section (resource table + toggle table) |
 
 ### Helm chart (`helm-chart/`)
 
@@ -59,7 +59,7 @@ Each template family directory (`templates/ecs/`, `templates/lambda/`, `template
 | `InfrastructureService.buildHelmValues()` | Keys in the generated `values.yaml` must match what the chart templates reference |
 | `helm-chart/values.yaml` | Default values; generated per-project `values.yaml` overrides specific keys |
 | `docs/06-kubernetes-guide.md` | If a new template is added or an existing one's behaviour changes |
-| `docs/09-security-model.md` | If new kube-score checks are addressed by the chart |
+| `docs/08-security-model.md` | If new kube-score checks are addressed by the chart |
 
 ### MCP tools (registered in `Main.kt`)
 
@@ -67,8 +67,8 @@ Each template family directory (`templates/ecs/`, `templates/lambda/`, `template
 |---|---|
 | `Engine.kt` | Tool handler (extracts params, calls InfrastructureService, formats response) |
 | `InfrastructureService.kt` | Business logic method for the tool |
-| `docs/08-tools-reference.md` | Full input/output spec for the new tool |
-| `docs/16-tool-architecture.md` | End-to-end architecture section (every layer, every CLI call) |
+| `docs/07-tools-reference.md` | Full input/output spec for the new tool |
+| `docs/15-tool-architecture.md` | End-to-end architecture section (every layer, every CLI call) |
 | `README.md` Deployment Workflow diagram | If the tool fits in the main workflow |
 | `.github/PULL_REQUEST_TEMPLATE.md` | If the workflow changes |
 
@@ -78,7 +78,7 @@ Each template family directory (`templates/ecs/`, `templates/lambda/`, `template
 |---|---|
 | All callers | `Engine.kt`, `InfrastructureService.kt`, `Validator.kt`, `BlueprintVerifier.kt` |
 | Tests | `InfrastructureServiceTest.kt`, `ValidatorTest.kt` |
-| `docs/16-tool-architecture.md` | Any data class described in the architecture doc |
+| `docs/15-tool-architecture.md` | Any data class described in the architecture doc |
 
 ### Configuration (environment variables)
 
@@ -91,25 +91,25 @@ Each template family directory (`templates/ecs/`, `templates/lambda/`, `template
 
 | Dependent | What must change |
 |---|---|
-| `docs/09-security-model.md` checkov rules table | New check added or removed |
+| `docs/08-security-model.md` checkov rules table | New check added or removed |
 | All Terraform templates | Must pass (not trigger) the new check |
 
 ### kube-score security checks
 
 | Dependent | What must change |
 |---|---|
-| `docs/09-security-model.md` kube-score table | New check added or removed |
+| `docs/08-security-model.md` kube-score table | New check added or removed |
 | `helm-chart/templates/` | The specific field that satisfies (or would violate) the check |
 
 ### CI workflows (`.github/workflows/`) and scripts (`.github/scripts/`)
 
 | Dependent | What must change |
 |---|---|
-| `docs/18-github-actions-guide.md` | Add/update the section for the new or modified workflow; describe what it does, when it runs, and which job/step it adds |
-| `docs/13-development-guide.md` project structure tree | New workflow file or script must appear in the `.github/` tree |
-| `docs/13-development-guide.md` CI Workflows section | If a new workflow is added, add its summary paragraph alongside `ci.yml`, `lint.yml`, etc. |
+| `docs/17-github-actions-guide.md` | Add/update the section for the new or modified workflow; describe what it does, when it runs, and which job/step it adds |
+| `docs/12-development-guide.md` project structure tree | New workflow file or script must appear in the `.github/` tree |
+| `docs/12-development-guide.md` CI Workflows section | If a new workflow is added, add its summary paragraph alongside `ci.yml`, `lint.yml`, etc. |
 | `README.md` badges | If the new workflow runs on every push/PR, add a status badge so its health is visible at a glance |
-| `docs/14-faq.md` "What do the CI badges in the README mean?" | Update if a new badge is added |
+| `docs/13-faq.md` "What do the CI badges in the README mean?" | Update if a new badge is added |
 
 ---
 
@@ -117,7 +117,7 @@ Each template family directory (`templates/ecs/`, `templates/lambda/`, `template
 
 Adding a blueprint that reuses an existing template family (`ecs`, `lambda`, or `eks`). If the new tech stack needs a new template family, see [§2](#2-add-a-new-template-family) instead.
 
-**Full step-by-step guide:** `docs/10-adding-blueprints.md`
+**Full step-by-step guide:** `docs/09-adding-blueprints.md`
 
 ### Complete Sync Checklist
 
@@ -136,7 +136,7 @@ Adding a blueprint that reuses an existing template family (`ecs`, `lambda`, or 
 
 - [ ] `README.md` Supported Blueprints table — new row with all columns (ID, framework, output, resources, provider, verified, cost)
 - [ ] `docs/04-blueprints-guide.md` "All Blueprints at a Glance" table — new row
-- [ ] `docs/15-blueprint-to-resource-map.md` — new section under the relevant template family (resource table showing ✓/— per resource + why this tech stack needs its specific data tier)
+- [ ] `docs/14-blueprint-to-resource-map.md` — new section under the relevant template family (resource table showing ✓/— per resource + why this tech stack needs its specific data tier)
 - [ ] `docs/00-glossary.md` — new entry for any AWS service this blueprint introduces that is not already defined (e.g. if the blueprint uses SQS and no existing blueprint does)
 
 #### Verification
@@ -169,11 +169,11 @@ Adding a new tech stack that cannot be served by any existing template family. E
 - [ ] `README.md` Supported Blueprints table — new row(s)
 - [ ] `docs/04-blueprints-guide.md` "All Blueprints at a Glance" table — new row(s) + the `templateFamily` field values list updated if a new value was added
 - [ ] `docs/04-blueprints-guide.md` TERRAFORM_ONLY vs TERRAFORM_K8S table — updated if the new family introduces a different output type
-- [ ] `docs/13-development-guide.md` project structure tree — new `templates/{new-family}/` directory shown
-- [ ] `docs/13-development-guide.md` "Adding a New Blueprint" section — updated if new toggle pattern is needed
-- [ ] `docs/15-blueprint-to-resource-map.md` — new template family section (resource table with ✓/— per resource, toggle variable table, and "why each stack needs its data tier" explanation)
+- [ ] `docs/12-development-guide.md` project structure tree — new `templates/{new-family}/` directory shown
+- [ ] `docs/12-development-guide.md` "Adding a New Blueprint" section — updated if new toggle pattern is needed
+- [ ] `docs/14-blueprint-to-resource-map.md` — new template family section (resource table with ✓/— per resource, toggle variable table, and "why each stack needs its data tier" explanation)
 - [ ] `docs/00-glossary.md` — new entries for any AWS service not already defined
-- [ ] `docs/09-security-model.md` — if the new template family introduces new checkov rules that must pass (or if existing ones don't apply), update the table
+- [ ] `docs/08-security-model.md` — if the new template family introduces new checkov rules that must pass (or if existing ones don't apply), update the table
 
 #### Verification
 
@@ -201,10 +201,10 @@ Adding a new callable tool beyond the existing eight (`list_available_blueprints
 
 #### Documentation
 
-- [ ] `docs/08-tools-reference.md` — complete new section: when to use, inputs table, success response example, error response examples
-- [ ] `docs/16-tool-architecture.md` — new tool section covering: plain-English paragraph, numbered steps (every CLI call, every file written), quick-reference table, "Why?" callouts for key decisions
+- [ ] `docs/07-tools-reference.md` — complete new section: when to use, inputs table, success response example, error response examples
+- [ ] `docs/15-tool-architecture.md` — new tool section covering: plain-English paragraph, numbered steps (every CLI call, every file written), quick-reference table, "Why?" callouts for key decisions
 - [ ] `README.md` Deployment Workflow diagram — add the new tool if it fits in the generate→validate→plan→apply flow, or note it as a standalone tool alongside `audit_infrastructure_package`
-- [ ] `docs/14-faq.md` — consider whether the new tool answers a question users will ask; add an FAQ entry if so
+- [ ] `docs/13-faq.md` — consider whether the new tool answers a question users will ask; add an FAQ entry if so
 
 #### Verification
 
@@ -234,8 +234,8 @@ Changes to `templates/ecs/main.tf`, `templates/eks/main.tf`, or `templates/lambd
 #### Documentation
 
 - [ ] HCL comments in the modified `main.tf` — the comment above the changed resource must still accurately describe the new behaviour. If you change how a resource works, update its concept banner.
-- [ ] `docs/15-blueprint-to-resource-map.md` — if the change adds, removes, or gates a resource differently, the resource table for that template family needs updating
-- [ ] `docs/09-security-model.md` checkov rules table — if the change is specifically to pass a new checkov rule, add that rule to the table with explanation
+- [ ] `docs/14-blueprint-to-resource-map.md` — if the change adds, removes, or gates a resource differently, the resource table for that template family needs updating
+- [ ] `docs/08-security-model.md` checkov rules table — if the change is specifically to pass a new checkov rule, add that rule to the table with explanation
 
 #### Verification
 
@@ -261,7 +261,7 @@ Changes to any file in `helm-chart/` (`Chart.yaml`, `values.yaml`, or any file u
 
 - [ ] HCL/YAML comments — every security-relevant field in the changed file must have an inline comment explaining why (following the existing pattern)
 - [ ] `docs/06-kubernetes-guide.md` — if the change affects the Helm chart's visible behaviour (new template, changed probe paths, new security setting), update the Helm chart walkthrough section
-- [ ] `docs/09-security-model.md` kube-score table — if the change is specifically to satisfy a kube-score check that was previously failing, add that check to the table
+- [ ] `docs/08-security-model.md` kube-score table — if the change is specifically to satisfy a kube-score check that was previously failing, add that check to the table
 
 #### Verification
 
@@ -316,30 +316,30 @@ Changes to `InfrastructureService.kt`, `Engine.kt`, `Validator.kt`, or `Models.k
 
 - [ ] All callers updated: `Engine.kt`, `InfrastructureService.kt`, `Validator.kt`, `BlueprintVerifier.kt`
 - [ ] Tests updated: `InfrastructureServiceTest.kt`, `ValidatorTest.kt`
-- [ ] If a data class is described in `docs/16-tool-architecture.md`: update that section
+- [ ] If a data class is described in `docs/15-tool-architecture.md`: update that section
 
 #### If you change a public method in `InfrastructureService.kt`
 
 - [ ] `Engine.kt` updated (it calls every public method)
 - [ ] `InfrastructureServiceTest.kt` updated (tests every public method)
-- [ ] `docs/16-tool-architecture.md` updated for that tool's flow section (numbered steps)
-- [ ] `docs/08-tools-reference.md` updated if the observable behaviour (inputs, outputs, error messages) changes
+- [ ] `docs/15-tool-architecture.md` updated for that tool's flow section (numbered steps)
+- [ ] `docs/07-tools-reference.md` updated if the observable behaviour (inputs, outputs, error messages) changes
 
 #### If you change `Validator.kt` output parsing
 
 - [ ] `ValidatorTest.kt` updated
-- [ ] If the change affects what checkov/kube-score findings look like in tool output: `docs/08-tools-reference.md` example responses
+- [ ] If the change affects what checkov/kube-score findings look like in tool output: `docs/07-tools-reference.md` example responses
 
 #### If you change `Engine.kt` output formatting
 
-- [ ] `docs/08-tools-reference.md` success/error response examples updated (these examples are copied from real output)
+- [ ] `docs/07-tools-reference.md` success/error response examples updated (these examples are copied from real output)
 
 #### If you change the architecture separation itself (adding a new public method, splitting a class)
 
 - [ ] `CONTRIBUTING.md` Architecture Ground Rules section updated
 - [ ] `docs/02-architecture.md` Technical Call Graph updated
-- [ ] `docs/13-development-guide.md` "The Deliberate Layering" section updated
-- [ ] `docs/16-tool-architecture.md` Layer explanations updated
+- [ ] `docs/12-development-guide.md` "The Deliberate Layering" section updated
+- [ ] `docs/15-tool-architecture.md` Layer explanations updated
 
 ---
 
@@ -365,7 +365,7 @@ for id in springboot-postgres ktor-dynamodb nodejs-s3 fastapi-redis springboot-e
 done
 ```
 
-If any step fails, resolve it before opening the PR. The CI workflows run steps 1–4 automatically on every push (see `docs/18-github-actions-guide.md` for a full description of each workflow).
+If any step fails, resolve it before opening the PR. The CI workflows run steps 1–4 automatically on every push (see `docs/17-github-actions-guide.md` for a full description of each workflow).
 
 ---
 

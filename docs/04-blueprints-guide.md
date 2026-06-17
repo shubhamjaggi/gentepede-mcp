@@ -13,7 +13,7 @@
 
 ECS and EKS blueprints provision VPC, KMS, and VPC flow logs. The `nodejs-s3` (Lambda family) blueprint provisions Lambda, API Gateway, S3, CloudFront, and KMS — it has no VPC (serverless, no persistent network). `TERRAFORM_K8S` blueprints also generate a Helm chart in `helm/`.
 
-**How does Gentepede know which services to create for each blueprint?** See [docs/15-blueprint-to-resource-map.md](15-blueprint-to-resource-map.md) for the complete derivation chain (blueprint JSON → InfrastructureService → terraform.tfvars → `count = var.enable_X ? 1 : 0`) and a full per-blueprint resource breakdown.
+**How does Gentepede know which services to create for each blueprint?** See [docs/14-blueprint-to-resource-map.md](14-blueprint-to-resource-map.md) for the complete derivation chain (blueprint JSON → InfrastructureService → terraform.tfvars → `count = var.enable_X ? 1 : 0`) and a full per-blueprint resource breakdown.
 
 ---
 
@@ -46,7 +46,7 @@ Yes — I need Helm, HPA, NetworkPolicy, multi-container pods, or GitOps tooling
 ```
 Relational database (SQL, transactions, joins)?
   └─► springboot-postgres (Spring Boot + RDS PostgreSQL)
-         or any ECS blueprint + custom data tier (see docs/10-adding-blueprints.md)
+         or any ECS blueprint + custom data tier (see docs/09-adding-blueprints.md)
 
 Key-value / NoSQL, no schema migrations?
   └─► ktor-dynamodb (Ktor + DynamoDB)
@@ -56,7 +56,7 @@ In-memory cache / session store / pub-sub?
 
 No persistent database needed?
   └─► Use springboot-postgres or ktor-dynamodb and omit the data tier
-       by not declaring it in awsResources (see docs/10-adding-blueprints.md)
+       by not declaring it in awsResources (see docs/09-adding-blueprints.md)
 ```
 
 ### Step 4: EKS — What is your data tier?
@@ -209,7 +209,7 @@ aws = { source = "hashicorp/aws", version = "= 5.82.0" }
 
 Using `= 5.82.0` (not `~> 5.0`) prevents provider-level drift between your generate and apply. When AWS releases a breaking provider change, you update this field and run the CI weekly job to verify all blueprints still pass.
 
-**All blueprints must use the same version.** See [docs/17-contributor-sync-guide.md §6](17-contributor-sync-guide.md#6-bump-the-terraform-provider-version) when bumping.
+**All blueprints must use the same version.** See [docs/16-contributor-sync-guide.md §6](16-contributor-sync-guide.md#6-bump-the-terraform-provider-version) when bumping.
 
 ---
 
