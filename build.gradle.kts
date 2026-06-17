@@ -28,8 +28,8 @@ dependencies {
 
     // Test dependencies
     testImplementation(kotlin("test"))
-    testImplementation("org.junit.jupiter:junit-jupiter:5.11.3")
-    testImplementation("org.junit.jupiter:junit-jupiter-params:5.11.3")
+    testImplementation("org.junit.jupiter:junit-jupiter:5.14.4")
+    testImplementation("org.junit.jupiter:junit-jupiter-params:5.14.4")
 }
 
 application {
