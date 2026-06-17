@@ -39,7 +39,7 @@ jobs:
         run: terraform fmt -check -recursive templates/
 
       - name: Set up tflint
-        uses: terraform-linters/setup-tflint@v4
+        uses: terraform-linters/setup-tflint@v6
         with:
           tflint_version: "v0.55.0"
 
