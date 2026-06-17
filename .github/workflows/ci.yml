@@ -38,7 +38,7 @@ jobs:
       # Annotate the PR/commit with per-test pass/fail status directly in the
       # GitHub UI. Runs even when build fails so failing tests are visible.
       - name: Annotate test results
-        uses: mikepenz/action-junit-report@v4
+        uses: mikepenz/action-junit-report@v6
         if: always()
         with:
           report_paths: 'build/test-results/test/*.xml'
