@@ -23,7 +23,8 @@ gentepede-mcp/
 │   └── test/
 │       └── kotlin/com/gentepede/
 │           ├── InfrastructureServiceTest.kt
-│           └── ValidatorTest.kt
+│           ├── ValidatorTest.kt
+│           └── EngineTest.kt
 ├── templates/
 │   ├── ecs/                             ← Terraform files for ECS-family blueprints
 │   │   ├── main.tf
@@ -109,6 +110,7 @@ The `archiveVersion.set("")` setting strips the version from the filename so the
 # Run a specific test class
 ./gradlew test --tests 'com.gentepede.InfrastructureServiceTest'
 ./gradlew test --tests 'com.gentepede.ValidatorTest'
+./gradlew test --tests 'com.gentepede.EngineTest'
 
 # Run a single test method
 ./gradlew test --tests 'com.gentepede.InfrastructureServiceTest.springboot-postgres sets enable_rds to true'
@@ -137,6 +139,14 @@ Test reports (HTML): `build/reports/tests/test/index.html`
 - **`isCommandAvailable`** — returns `false` for non-existent binaries; returns `true` for `java`
 - **validate has no credential pre-flight** — confirms `validateWorkspace` does not call `aws sts get-caller-identity`
 - **credential error wrapping** — `ProcessExecutionException` carries the original AWS error message
+
+`EngineTest` tests the thin MCP handler layer — no mocking required because missing-parameter and workspace-not-found checks return before any Terraform execution:
+
+- **Missing-parameter detection** — each of the 7 stateful tools returns `isError=true` with the missing parameter name in the error text
+- **`project_name` format validation** — spaces, underscores, and special characters are rejected; hyphenated names are accepted
+- **Workspace-not-found handling** — passing a non-existent project name to any stateful tool returns a clean error response
+- **`listAvailableBlueprints` success path** — all 6 blueprint IDs appear in the output along with provider version and output type
+- **Error response format** — all error responses start with `"Error:"` prefix and have `isError=true`; success responses do not have `isError` set
 
 ---
 
@@ -249,7 +259,7 @@ Triggers on every push to `main` and every pull request. Three jobs:
 1. `./gradlew build` — compile + unit tests (InfrastructureServiceTest, ValidatorTest, EngineTest). JaCoCo generates a coverage report as a test finalizer.
 2. Annotate test results — posts per-test pass/fail directly in the GitHub PR check run.
 3. Upload coverage report artifact (HTML + XML, retained 7 days).
-4. Coverage threshold check — fails if instruction coverage falls below 55%.
+4. Coverage threshold check — fails if instruction coverage falls below 30%.
 5. `./gradlew shadowJar` — build fat JAR.
 6. Upload fat JAR artifact for Job 2 to download.
 7. `python3 .github/scripts/mcp-smoke-test.py` — start the JAR, run `initialize` + `tools/list` via NDJSON (MCP Kotlin SDK v0.13.x wire format), verify all 8 tools register.

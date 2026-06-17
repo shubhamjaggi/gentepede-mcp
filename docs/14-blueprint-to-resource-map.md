@@ -150,7 +150,7 @@ Toggle variables in `terraform.tfvars`:
 | **S3 Bucket** | — | **✓** |
 | **CloudFront Distribution + OAC** | — | **✓** |
 
-Toggle variables in `terraform.tfvars`:
+Conditional variables in `terraform.tfvars` (`enable_rds` is a derived boolean toggle; `s3_bucket_name` is a user-supplied string — empty means no S3/CloudFront):
 
 | Blueprint | enable_rds | s3_bucket_name |
 |---|:---:|:---:|

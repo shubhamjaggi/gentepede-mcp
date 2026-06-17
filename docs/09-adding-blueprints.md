@@ -20,7 +20,7 @@ Create `src/main/resources/blueprints/go-dynamodb.json`:
   "outputType": "TERRAFORM_ONLY",
   "templateFamily": "ecs",
   "terraformProviderVersion": "5.82.0",
-  "lastVerifiedDate": "2025-06",
+  "lastVerifiedDate": "2026-06",
   "techStack": {
     "language": "Go",
     "framework": "Go net/http",
