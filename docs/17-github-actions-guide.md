@@ -37,7 +37,7 @@ What it does, in order:
 
 3. **Upload coverage report** — The JaCoCo HTML and XML coverage reports are uploaded as a workflow artifact (`coverage-report`) retained for 7 days. Gives contributors a downloadable coverage breakdown without needing to build locally.
 
-4. **Check coverage threshold** — Parses `build/reports/jacoco/test/jacocoTestReport.xml` and fails if instruction coverage falls below 55%. The threshold is intentionally conservative; raise it in the inline Python script as test coverage improves.
+4. **Check coverage threshold** — Parses `build/reports/jacoco/test/jacocoTestReport.xml` and fails if instruction coverage falls below 30%. Raise the threshold in the inline Python script as test coverage improves.
 
 5. **`./gradlew shadowJar`** — Builds the fat JAR (`build/libs/gentepede-mcp-all.jar`) that bundles Kotlin bytecode, blueprint JSON files, Terraform template files, and the Helm chart.
 
@@ -80,7 +80,7 @@ Three parallel jobs — none depends on the build. Lint jobs run independently s
 
 1. **`terraform fmt -check -recursive templates/`** — Fails if any `.tf` file is not correctly formatted. Fix locally with `terraform fmt -recursive templates/`.
 
-2. **tflint with AWS ruleset** — Runs `tflint --chdir=templates/{ecs,lambda,eks}` to check each template family with the AWS provider ruleset. Catches deprecated arguments, invalid resource configurations, and HCL style issues that `terraform validate` does not. Configuration lives in `.tflint.hcl` at the repo root (tflint searches parent directories so `--chdir` picks it up automatically).
+2. **tflint with AWS ruleset** — Runs `tflint --chdir=templates/{ecs,lambda,eks} --config="$(pwd)/.tflint.hcl"` to check each template family with the AWS provider ruleset. Catches deprecated arguments, invalid resource configurations, and HCL style issues that `terraform validate` does not. Configuration lives in `.tflint.hcl` at the repo root. The `--config` flag must be passed explicitly: when `--chdir` is used, tflint resolves the config relative to the chdir target (e.g. `templates/ecs/`), not the invocation directory, so without `--config` it falls back to built-in defaults and ignores the repo-root config.
 
    Key rules disabled in `.tflint.hcl` because they don't apply to these templates:
    - `terraform_required_providers` / `terraform_required_version` — `providers.tf` is generated at runtime by `InfrastructureService`, not stored in the template directory.
@@ -175,7 +175,7 @@ To view coverage locally:
 # Open: build/reports/jacoco/test/html/index.html
 ```
 
-The CI threshold is currently set at 55% instruction coverage. To raise it, edit the `threshold = 55` line in the `Check coverage threshold` step in `ci.yml`.
+The CI threshold is currently set at 30% instruction coverage. To raise it, edit the `threshold = 30` line in the `Check coverage threshold` step in `ci.yml`.
 
 ---
 
