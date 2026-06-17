@@ -196,4 +196,4 @@ jobs:
           cache: gradle
 
       - name: Submit Gradle dependency graph
-        uses: gradle/actions/dependency-submission@v4
+        uses: gradle/actions/dependency-submission@v6
