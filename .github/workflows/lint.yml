@@ -26,7 +26,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v4
@@ -74,7 +74,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Validate blueprint JSON schemas
         run: python3 .github/scripts/validate-blueprint-schemas.py
@@ -92,7 +92,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Install yamllint
         run: pip install yamllint
