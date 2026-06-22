@@ -3,7 +3,7 @@ import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 buildscript {
     configurations.all {
         resolutionStrategy {
-            force("org.apache.logging.log4j:log4j-core:2.25.4")
+            force("org.apache.logging.log4j:log4j-core:2.26.0")
             force("org.codehaus.plexus:plexus-utils:4.0.3")
         }
     }
