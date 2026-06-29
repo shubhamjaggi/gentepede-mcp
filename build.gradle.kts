@@ -36,8 +36,8 @@ dependencies {
 
     // Test dependencies
     testImplementation(kotlin("test"))
-    testImplementation("org.junit.jupiter:junit-jupiter:5.14.4")
-    testImplementation("org.junit.jupiter:junit-jupiter-params:5.14.4")
+    testImplementation("org.junit.jupiter:junit-jupiter:6.1.1")
+    testImplementation("org.junit.jupiter:junit-jupiter-params:6.1.1")
 }
 
 application {
