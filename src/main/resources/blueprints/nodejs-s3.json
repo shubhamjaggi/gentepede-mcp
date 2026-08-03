@@ -5,7 +5,7 @@
   "outputType": "TERRAFORM_ONLY",
   "templateFamily": "lambda",
   "terraformProviderVersion": "5.82.0",
-  "lastVerifiedDate": "2026-07",
+  "lastVerifiedDate": "2026-08",
   "techStack": {
     "language": "JavaScript/TypeScript",
     "framework": "Node.js",
