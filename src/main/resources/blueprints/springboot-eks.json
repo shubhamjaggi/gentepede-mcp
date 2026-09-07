@@ -5,7 +5,7 @@
   "outputType": "TERRAFORM_K8S",
   "templateFamily": "eks",
   "terraformProviderVersion": "5.82.0",
-  "lastVerifiedDate": "2026-08",
+  "lastVerifiedDate": "2026-09",
   "techStack": {
     "language": "Java/Kotlin",
     "framework": "Spring Boot",
