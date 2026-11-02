@@ -5,7 +5,7 @@
   "outputType": "TERRAFORM_ONLY",
   "templateFamily": "ecs",
   "terraformProviderVersion": "5.82.0",
-  "lastVerifiedDate": "2026-10",
+  "lastVerifiedDate": "2026-11",
   "techStack": {
     "language": "Java/Kotlin",
     "framework": "Spring Boot",
